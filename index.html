@@ -1,910 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>BoardScope by CW - ABO Practice Test</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%233e7cfa' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='4' fill='%233e7cfa'/%3E%3C/svg%3E" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.6.4/math.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BoardScope by CW</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/10.6.4/math.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <style>
     :root {
-      --bg-color: #f8f9fa;
-      --text-color: #222;
-      --button-bg: #3e7cfa;
-      --button-text: #fff;
-      --progress-bg: #e4e7ea;
-      --progress-fg: #3e7cfa;
-      --card-bg: #e4e7ea;
-      --table-header: #dbeafe;
-      --category-color: #3e7cfa;
-      --mark-border: #ffca28;
-      --mark-button: #ffca28;
-      --mark-button-hover: #ffb300;
+      --bg: #f0f4f8;
+      --fg: #1a2e44;
+      --card-bg: #ffffff;
+      --button-bg: #2a6f97;
+      --button-fg: #ffffff;
+      --mark-border: #f4a261;
+      --correct-bg: #2e7d32;
+      --wrong-bg: #d32f2f;
+      --progress-fg: #2a6f97;
+      --progress-bg: #d3e0ea;
+      --popup-bg: #ffffff;
+      --category-bg: #d3e0ea;
     }
     .dark {
-      --bg-color: #23272f;
-      --text-color: #ddd;
-      --button-bg: #60a5fa;
-      --button-text: #fff;
-      --progress-bg: #222;
-      --progress-fg: #1d90ff;
-      --card-bg: #23272f;
-      --table-header: #1e293b;
-      --category-color: #60a5fa;
-      --mark-border: #ffd54f;
-      --mark-button: #ffd54f;
-      --mark-button-hover: #ffca28;
+      --bg: #1a2e44;
+      --fg: #f0f4f8;
+      --card-bg: #2a4066;
+      --button-bg: #4a90e2;
+      --progress-bg: #3a5066;
+      --popup-bg: #2a4066;
+      --category-bg: #3a5066;
     }
-    body { font-family: Arial, sans-serif; margin: 0; background: var(--bg-color); color: var(--text-color); }
-    .container { max-width: 640px; margin: 0 auto; padding: 32px 8px; }
-    .question { font-size: 1.1em; margin-bottom: 16px; }
-    .options button {
-      width: 100%; margin-bottom: 8px; padding: 12px;
-      font-size: 1em; border-radius: 7px; border: 1px solid #bbb;
-      cursor: pointer; background: #fff; color: #222;
-      transition: background .2s, color .2s;
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overscroll-behavior: none;
     }
-    .dark .options button { background: #222; color: #eee; border-color: #555; }
-    .options button.correct { background: #19b519; color: #fff; }
-    .options button.wrong { background: #ce1818; color: #fff; }
-    .progressbar-bg { background: var(--progress-bg); border-radius: 10px; height: 12px; }
-    .progressbar-fg { background: var(--progress-fg); height: 100%; border-radius: 10px; transition: width .2s; }
-    .controls { margin: 20px 0; display: flex; justify-content: space-between; flex-wrap: wrap; }
-    .controls button, .menu-btn { padding: 8px 18px; border-radius: 7px; border: none; background: var(--button-bg); color: var(--button-text); font-size: 1em; cursor: pointer; }
-    .menu-btn { float: right; margin-left: 8px; }
-    .controls button:disabled { background: #b7b7b7; color: #eee; cursor: default; }
-    .setup-panel label { display: block; margin: 18px 0 7px 0; font-weight: 600; }
-    .setup-panel select { margin: 10px 0; padding: 8px; font-size: 1em; }
-    .setup-panel input[type="checkbox"] { margin-right: 8px; }
-    .result-card { background: var(--card-bg); padding: 18px; border-radius: 12px; margin-bottom: 22px; }
-    .dark .result-card { color: #e9e9e9; }
-    .timer { font-size: 1.13em; font-weight: bold; float: right; }
-    .category-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-    .category-table th, .category-table td { padding: 8px; border-bottom: 1px solid #bbb; }
-    .category-table th { background: var(--table-header); }
-    .category-table tr:last-child td { border-bottom: none; }
-    .category-label { font-size: 0.93em; color: var(--category-color); }
+    #app {
+      width: 100%;
+      max-width: 600px;
+      padding: 20px;
+      box-sizing: border-box;
+    }
     .header {
-      text-align: center; padding: 20px 0;
-      background: linear-gradient(to bottom, #e6f0ff 0%, var(--bg-color) 100%);
-      position: relative; overflow: hidden;
-    }
-    .dark .header { background: linear-gradient(to bottom, #1e293b 0%, var(--bg-color) 100%); }
-    .header::before {
-      content: 'E T A O N R I S H';
-      position: absolute; top: 10px; left: 0; right: 0;
-      font-size: 10px; letter-spacing: 5px;
-      color: rgba(0, 0, 0, 0.1); text-align: center;
-      font-family: 'Courier New', monospace;
-    }
-    .dark .header::before { color: rgba(255, 255, 255, 0.1); }
-    .logo-main {
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'Montserrat', Arial, sans-serif; font-size: 2em;
-      font-weight: 700; color: var(--button-bg); margin: 0;
-      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    .logo-main svg { margin-right: 10px; width: 40px; height: 40px; }
-    .logo-main span { font-size: 0.6em; font-weight: 400; margin-left: 5px; }
-    .logo-wordmark {
-      font-family: 'Montserrat', Arial, sans-serif; font-size: 1.5em;
-      font-weight: 600; color: var(--button-bg); margin: 10px 0;
       text-align: center;
+      margin-bottom: 20px;
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-    .marked { border: 2px solid var(--mark-border); border-radius: 5px; padding: 10px; position: relative; }
-    .mark-flag { position: absolute; top: 5px; right: 5px; width: 20px; height: 20px; }
-    .mark-btn { background: var(--mark-button); color: #222; margin-right: 8px; }
-    .mark-btn:hover { background: var(--mark-button-hover); }
-    .review-list, .progress-section { margin-top: 20px; }
-    .review-list h3, .progress-section h3 { margin-bottom: 10px; }
-    .review-list ul { list-style: none; padding: 0; }
-    .review-list li { margin: 5px 0; }
-    .review-list a { color: var(--category-color); text-decoration: none; }
-    .review-list a:hover { text-decoration: underline; }
-    .progress-table { width: 100%; border-collapse: collapse; }
-    .progress-table th, .progress-table td { padding: 8px; border-bottom: 1px solid #bbb; }
-    .progress-table th { background: var(--table-header); }
-    .explanation-popup { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: var(--card-bg); padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); z-index: 1000; max-width: 80%; }
-    .explanation-popup p { margin: 0 0 10px 0; }
-    .explanation-popup button { background: var(--button-bg); color: var(--button-text); }
-    .achievement { color: #19b519; font-weight: bold; margin: 10px 0; }
+    .logo-main {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .logo-main svg {
+      width: 40px;
+      margin-right: 10px;
+      fill: var(--button-bg);
+    }
+    .logo-main span {
+      font-weight: 400;
+      color: var(--button-bg);
+    }
+    .setup-panel, .question, .result-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .controls, .options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    button {
+      background: var(--button-bg);
+      color: var(--button-fg);
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover:not(:disabled) {
+      background: #1e4f6f;
+    }
+    .question.marked {
+      border: 2px solid var(--mark-border);
+    }
+    .timer {
+      font-size: 18px;
+      font-weight: 600;
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: var(--card-bg);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
     #calculatorModal {
-      position: absolute; bottom: 20px; right: 20px; width: 320px;
-      background: #333; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      z-index: 1000; display: none;
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--card-bg);
+      padding: 15px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      z-index: 1000;
     }
-    .dark #calculatorModal { background: #444; }
     #calculatorHeader {
-      background: #555; color: white; padding: 10px;
-      text-align: center; cursor: move; border-radius: 10px 10px 0 0;
+      background: var(--button-bg);
+      color: var(--button-fg);
+      padding: 8px;
+      text-align: center;
+      border-radius: 8px 8px 0 0;
+      cursor: move;
     }
-    .dark #calculatorHeader { background: #666; }
-    #calc-display {
-      width: 100%; height: 50px; background: #fff;
-      text-align: right; padding: 10px; font-size: 24px;
-      box-sizing: border-box; border: 1px solid #ccc;
+    .calc-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
     }
-    .dark #calc-display { background: #eee; }
-    #calc-buttons {
-      display: grid; grid-template-columns: repeat(4, 1fr);
-      gap: 1px; background: #444; padding: 10px;
-      border-radius: 0 0 10px 10px;
+    .toggle-calc {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: var(--button-bg);
+      color: var(--button-fg);
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      cursor: pointer;
     }
-    .dark #calc-buttons { background: #555; }
-    .calc-button {
-      padding: 20px; font-size: 18px; border: none;
-      background: #666; color: white; cursor: pointer;
-      transition: background .2s;
+    @media (max-width: 400px) {
+      #app { padding: 10px; }
+      .logo-main { font-size: 24px; }
+      button { padding: 10px 20px; font-size: 14px; }
     }
-    .dark .calc-button { background: #777; }
-    .calc-button:hover { background: #888; }
-    .dark .calc-button:hover { background: #999; }
-    .operator { background: #ff9500; }
-    .dark .operator { background: #ffaa33; }
-    .operator:hover { background: #ffb347; }
-    .dark .operator:hover { background: #ffbb55; }
-    .equals { background: #2196F3; }
-    .dark .equals { background: #42a5f5; }
-    .equals:hover { background: #64b5f6; }
-    .dark .equals:hover { background: #90caf9; }
-    #calculatorToggle {
-      position: fixed; bottom: 20px; right: 20px;
-      padding: 10px 20px; font-size: 16px;
-      background: #4CAF50; color: white; border: none;
-      border-radius: 5px; cursor: pointer; z-index: 2000;
-    }
-    .dark #calculatorToggle { background: #66bb6a; }
-    #calculatorToggle:hover { background: #45a049; }
-    .dark #calculatorToggle:hover { background: #4caf50; }
   </style>
 </head>
 <body>
-  <div class="container" id="app"></div>
-  <button id="calculatorToggle" onclick="toggleCalculator()">Calculator</button>
+  <div id="app"></div>
   <div id="calculatorModal">
     <div id="calculatorHeader">Drag Me!</div>
     <input type="text" id="calc-display" value="0" readonly>
-    <div id="calc-buttons">
-      <button class="calc-button" onclick="calcClear()">C</button>
-      <button class="calc-button" onclick="calcBack()">⌫</button>
-      <button class="calc-button operator" onclick="calcInsert('(')">(</button>
-      <button class="calc-button operator" onclick="calcInsert(')')">)</button>
-      <button class="calc-button" onclick="calcInsert('7')">7</button>
-      <button class="calc-button" onclick="calcInsert('8')">8</button>
-      <button class="calc-button" onclick="calcInsert('9')">9</button>
-      <button class="calc-button operator" onclick="calcInsert('/')">÷</button>
-      <button class="calc-button" onclick="calcInsert('4')">4</button>
-      <button class="calc-button" onclick="calcInsert('5')">5</button>
-      <button class="calc-button" onclick="calcInsert('6')">6</button>
-      <button class="calc-button operator" onclick="calcInsert('*')">×</button>
-      <button class="calc-button" onclick="calcInsert('1')">1</button>
-      <button class="calc-button" onclick="calcInsert('2')">2</button>
-      <button class="calc-button" onclick="calcInsert('3')">3</button>
-      <button class="calc-button operator" onclick="calcInsert('-')">−</button>
-      <button class="calc-button" onclick="calcInsert('0')">0</button>
-      <button class="calc-button" onclick="calcInsert('.')">.</button>
-      <button class="calc-button operator" onclick="calcSquare()">x²</button>
-      <button class="calc-button operator" onclick="calcInsert('+')">+</button>
-      <button class="calc-button operator" onclick="calcSqrt()">√</button>
-      <button class="calc-button equals" onclick="calcEquals()" style="grid-column: span 3;">=</button>
+    <div class="calc-grid">
+      <button onclick="calcClear()">C</button>
+      <button onclick="calcBack()">⌫</button>
+      <button onclick="calcInsert('(')">(</button>
+      <button onclick="calcInsert(')')">)</button>
+      <button onclick="calcInsert('7')">7</button>
+      <button onclick="calcInsert('8')">8</button>
+      <button onclick="calcInsert('9')">9</button>
+      <button onclick="calcInsert('/')">÷</button>
+      <button onclick="calcInsert('4')">4</button>
+      <button onclick="calcInsert('5')">5</button>
+      <button onclick="calcInsert('6')">6</button>
+      <button onclick="calcInsert('*')">×</button>
+      <button onclick="calcInsert('1')">1</button>
+      <button onclick="calcInsert('2')">2</button>
+      <button onclick="calcInsert('3')">3</button>
+      <button onclick="calcInsert('-')">−</button>
+      <button onclick="calcInsert('0')">0</button>
+      <button onclick="calcInsert('.')">.</button>
+      <button onclick="calcSquare()">x²</button>
+      <button onclick="calcInsert('+')">+</button>
+      <button onclick="calcSqrt()">√</button>
+      <button onclick="calcEquals()">=</button>
     </div>
   </div>
-  <script>
-    // Paste the contents of abo-script.js here before hosting
-let QUESTIONS = [
-{ q: "Which lens type corrects for astigmatism?", o: ["Spherical", "Plano", "Cylindrical", "Progressive"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Cylindrical lenses correct astigmatism by compensating for the uneven curvature of the cornea or lens." },
-{ q: "A prescription of +3.00 -1.00 x 180 is best described as:", o: ["Simple myopic", "Compound hyperopic astigmatism", "Simple hyperopic", "Compound myopic astigmatism"], a: 1, c: "Ophthalmic Optics & Prescriptions", e: "This is compound hyperopic astigmatism because it combines a positive sphere (+3.00) with a cylinder (-1.00) at a specific axis." },
-{ q: "If the optical center of a lens is not aligned with the patient’s pupil, what is most likely induced?", o: ["Astigmatism", "Chromatic aberration", "Prism", "Vertex distance error"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Misalignment of the optical center induces prism, causing image displacement and potential visual discomfort." },
-{ q: "What does 'O.D.' indicate on a prescription?", o: ["Left eye", "Both eyes", "Right eye", "Outer diameter"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "O.D. stands for 'oculus dexter,' Latin for right eye." },
-{ q: "A plano lens will have what net power?", o: ["Zero", "+1.00D", "-1.00D", "+2.00D"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "A plano lens has no corrective power, so its net power is zero diopters." },
-{ q: "Which prescription represents simple myopia?", o: ["-2.00 +0.00 x 180", "+2.00 -2.00 x 090", "+1.00 -1.00 x 180", "-1.00 +2.00 x 090"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Simple myopia is corrected with a negative spherical power and no cylinder, as in -2.00 +0.00 x 180." },
-{ q: "A lens with -1.00 +1.00 x 180 corrects:", o: ["Simple myopia", "Simple hyperopia", "Mixed astigmatism", "Plano"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "This prescription results in zero power in one meridian and +1.00D in the other, indicating mixed astigmatism." },
-{ q: "If a prescription reads -2.00 +1.50 x 090, the cylinder axis is:", o: ["90 degrees", "180 degrees", "45 degrees", "135 degrees"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "The axis is explicitly stated as 090 in the prescription." },
-{ q: "What is the purpose of a prism in a lens prescription?", o: ["Reduce thickness", "Change lens color", "Shift image position", "Correct vertex distance"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Prisms shift the image to correct for eye misalignment, such as in strabismus." },
-{ q: "A patient has -3.00D OU. What does 'OU' mean?", o: ["Right eye", "Left eye", "Both eyes", "Cylinder axis"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "OU stands for 'oculus uterque,' Latin for both eyes." },
-{ q: "The 'add' value in a bifocal prescription is for:", o: ["Astigmatism correction", "Distance correction", "Near correction", "Prism"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "The add value provides additional power for near vision, typically for presbyopia." },
-{ q: "Which of these is an example of mixed astigmatism?", o: ["+2.00 -2.50 x 180", "-2.00 +2.00 x 090", "+1.00 -1.00 x 180", "+2.00 +2.00 x 180"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Mixed astigmatism occurs when one meridian is hyperopic (+2.00) and the other is myopic after cylinder correction." },
-{ q: "The term 'vertex distance' refers to the:", o: ["Distance from cornea to lens back surface", "Distance between pupils", "Segment height", "Base curve"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Vertex distance is the distance from the cornea to the back surface of the lens, affecting effective lens power." },
-{ q: "A patient’s Rx changes from -4.00D to -2.00D at age 45. Likely explanation?", o: ["Presbyopia", "Myopic shift", "Cataract formation", "Hyperopia onset"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Cataract formation can reduce myopia by altering the lens's refractive index." },
-{ q: "What is the meaning of 'anisometropia'?", o: ["Different Rx in each eye", "Same Rx in both eyes", "Astigmatism in both eyes", "Prism in one eye"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Anisometropia refers to a significant difference in prescription between the two eyes." },
-{ q: "A lens with +2.00 -2.00 x 090 gives what power at 180 degrees?", o: ["+2.00D", "0.00D", "-2.00D", "+1.00D"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "At 180 degrees (90 degrees from the cylinder axis), the power is the sphere power, +2.00D." },
-{ q: "The axis number in a prescription refers to:", o: ["Direction of cylinder power", "Direction of prism", "Lens thickness", "Pupil size"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "The axis indicates the orientation of the cylinder power for astigmatism correction." },
-{ q: "A patient returns with complaints of double vision after a new Rx with added prism. What’s the best course of action?", o: ["Check prism orientation and amount", "Increase add power", "Decrease base curve", "Adjust frame only"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Double vision suggests incorrect prism placement, so verify orientation and amount." },
-{ q: "Cylinder power is always measured in:", o: ["Degrees", "Millimeters", "Diopters", "Percentages"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Cylinder power, like spherical power, is measured in diopters." },
-{ q: "The most common unit for measuring lens power is:", o: ["Diopters", "Millimeters", "Degrees", "Microns"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Diopters measure the refractive power of lenses." },
-{ q: "If a patient’s prescription is +1.00 -1.00 x 180, what is the spherical equivalent?", o: ["0.00D", "+0.50D", "+1.00D", "-0.50D"], a: 1, c: "Ophthalmic Optics & Prescriptions", e: "Spherical equivalent is sphere + (cylinder/2) = +1.00 + (-1.00/2) = +0.50D." },
-{ q: "Which of the following indicates simple hyperopia?", o: ["-1.00 +0.00 x 090", "+2.00 -2.00 x 180", "+1.00 +0.00 x 180", "-2.00 +1.00 x 090"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Simple hyperopia is a positive spherical power with no cylinder, as in +1.00 +0.00 x 180." },
-{ q: "What is the correct order for writing a spectacle Rx?", o: ["Sphere, Add, Cylinder, Axis", "Sphere, Cylinder, Axis, Add", "Add, Sphere, Cylinder, Axis", "Cylinder, Sphere, Add, Axis"], a: 1, c: "Ophthalmic Optics & Prescriptions", e: "Standard notation is sphere, cylinder, axis, followed by add if applicable." },
-{ q: "A patient’s prescription reads: -2.00 +1.00 x 090 OD, -1.00 +0.50 x 090 OS. How much anisometropia is present?", o: ["1.00D", "0.50D", "None", "2.00D"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Anisometropia is the difference in spherical equivalent: OD (-1.50D), OS (-0.75D), difference is 1.00D." },
-{ q: "If a prescription is -2.00 -1.00 x 180, what is the cylinder power?", o: ["-2.00D", "-1.00D", "+1.00D", "0.00D"], a: 1, c: "Ophthalmic Optics & Prescriptions", e: "The cylinder power is explicitly -1.00D in the prescription." },
-{ q: "Which of the following notations is in minus cylinder form?", o: ["+1.00 +2.00 x 090", "+2.00 -1.00 x 180", "-2.00 +1.00 x 090", "+3.00 -2.00 x 180"], a: 3, c: "Ophthalmic Optics & Prescriptions", e: "Minus cylinder form has a negative cylinder value, as in +3.00 -2.00 x 180." },
-{ q: "What is the result of placing the optical center too high in a pair of glasses?", o: ["Induced base up prism", "Induced base down prism", "No effect", "Induced astigmatism"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "A high optical center induces base up prism due to the lens's prismatic effect." },
-{ q: "A spectacle Rx reads +3.00 -2.00 x 180 with a +2.25 add. The near Rx at 180 is:", o: ["+5.25", "+3.25", "+0.25", "+2.25"], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "Near Rx at 180 is sphere + add = +3.00 + 2.25 = +5.25D." },
-{ q: "A patient with +4.00 sphere needs a vertex distance change from 10 mm to 15 mm. What’s the effect?", o: ["Effective power increases", "Effective power decreases", "No change", "Induced prism"], a: 1, c: "Ophthalmic Optics & Prescriptions", e: "Increasing vertex distance reduces effective power for plus lenses." },
-{ q: "What is a 'cross cylinder' used for in refraction?", o: ["Measuring PD", "Measuring lens thickness", "Refining cylinder power and axis", "Neutralizing prism"], a: 2, c: "Ophthalmic Optics & Prescriptions", e: "Cross cylinders refine the cylinder power and axis during astigmatism testing." },
-{ q: "Which term means 'right eye'?", o: ["O.D.", "O.S.", "O.U.", "D.V."], a: 0, c: "Ophthalmic Optics & Prescriptions", e: "O.D. is the abbreviation for right eye (oculus dexter)." },
-{ q: "Which lens material is most impact-resistant and commonly used for safety eyewear?", o: ["Glass", "Polycarbonate", "CR-39", "Trivex"], a: 1, c: "Ophthalmic Products", e: "Polycarbonate is highly impact-resistant, ideal for safety eyewear." },
-{ q: "What is the main advantage of high-index lens materials?", o: ["Lower cost", "Higher impact resistance", "Thinner and lighter lenses", "More tint options"], a: 2, c: "Ophthalmic Products", e: "High-index materials allow thinner, lighter lenses for high prescriptions." },
-{ q: "What type of frame is recommended for children due to durability?", o: ["Rimless", "Semi-rimless", "Full rim", "Metal"], a: 2, c: "Ophthalmic Products", e: "Full rim frames are more durable and suitable for children." },
-{ q: "Which type of lens should be used for drill-mount frames?", o: ["CR-39", "Glass", "Polycarbonate", "Bifocal"], a: 2, c: "Ophthalmic Products", e: "Polycarbonate is strong and safe for drill-mount frames." },
-{ q: "Which lens coating reduces glare and improves cosmetic appearance?", o: ["Scratch-resistant", "Anti-reflective", "UV-blocking", "Tint"], a: 1, c: "Ophthalmic Products", e: "Anti-reflective coating reduces glare and improves lens aesthetics." },
-{ q: "What is the best lens material for a child with a high prescription?", o: ["Glass", "Polycarbonate", "CR-39", "Photochromic"], a: 1, c: "Ophthalmic Products", e: "Polycarbonate is lightweight, impact-resistant, and ideal for children." },
-{ q: "What type of frame material is best for patients with metal allergies?", o: ["Monel", "Titanium", "Nickel Silver", "Cellulose Acetate"], a: 1, c: "Ophthalmic Products", e: "Titanium is hypoallergenic, ideal for metal allergy patients." },
-{ q: "Which lens material offers the highest Abbe value?", o: ["Glass", "CR-39", "Polycarbonate", "High-index"], a: 1, c: "Ophthalmic Products", e: "Glass has the highest Abbe value, minimizing chromatic aberration." },
-{ q: "A patient who wants sunglasses that darken in sunlight should request:", o: ["Polarized lenses", "Photochromic lenses", "Tinted lenses", "Anti-reflective lenses"], a: 1, c: "Ophthalmic Products", e: "Photochromic lenses darken in sunlight for convenience." },
-{ q: "What type of lens treatment is best for computer use?", o: ["UV-blocking", "Polarized", "Blue light filter", "Photochromic"], a: 2, c: "Ophthalmic Products", e: "Blue light filters reduce eye strain from screens." },
-{ q: "Which lens design provides a continuous range of vision from distance to near?", o: ["Single vision", "Bifocal", "Progressive", "Trifocal"], a: 2, c: "Ophthalmic Products", e: "Progressive lenses offer seamless vision correction across distances." },
-{ q: "Which frame marking sequence indicates lens width, bridge width, and temple length?", o: ["54-18-140", "18-54-140", "140-54-18", "54-140-18"], a: 0, c: "Ophthalmic Products", e: "The standard format is lens width-bridge width-temple length, e.g., 54-18-140." },
-{ q: "Which is NOT a benefit of anti-reflective coating?", o: ["Reduces glare", "Improves lens durability", "Improves appearance", "Enhances night driving"], a: 1, c: "Ophthalmic Products", e: "Anti-reflective coating does not improve lens durability." },
-{ q: "What lens type corrects for presbyopia and distance vision without visible lines?", o: ["Bifocal", "Trifocal", "Single vision", "Progressive"], a: 3, c: "Ophthalmic Products", e: "Progressive lenses correct presbyopia and distance without lines." },
-{ q: "Which frame feature is most important for sports eyewear?", o: ["Adjustable nosepads", "Spring hinges", "Wrap design", "Semi-rimless"], a: 2, c: "Ophthalmic Products", e: "Wrap design ensures secure fit and wide field of view for sports." },
-{ q: "What is a disadvantage of glass lenses compared to plastic?", o: ["Easier to scratch", "Heavier weight", "Lower optical clarity", "More flexible"], a: 1, c: "Ophthalmic Products", e: "Glass lenses are heavier than plastic, making them less comfortable." },
-{ q: "Which lens material is naturally UV protective?", o: ["Glass", "CR-39", "Polycarbonate", "High-index"], a: 2, c: "Ophthalmic Products", e: "Polycarbonate naturally blocks UV rays." },
-{ q: "What is the recommended minimum center thickness for a polycarbonate lens?", o: ["1.0 mm", "1.5 mm", "2.2 mm", "2.5 mm"], a: 0, c: "Ophthalmic Products", e: "1.0 mm is the minimum thickness for polycarbonate to ensure safety." },
-{ q: "Which lens design is best for someone who spends a lot of time driving and reading?", o: ["Single vision", "Bifocal", "Trifocal", "Progressive"], a: 3, c: "Ophthalmic Products", e: "Progressive lenses support both driving and reading seamlessly." },
-{ q: "A frame marked 'CE' indicates compliance with:", o: ["ANSI standards", "European standards", "Canadian standards", "FDA regulations"], a: 1, c: "Ophthalmic Products", e: "CE indicates compliance with European safety standards." },
-{ q: "A polarized lens is especially useful for:", o: ["Reducing UV exposure", "Blocking blue light", "Reducing glare from horizontal surfaces", "Improving lens durability"], a: 2, c: "Ophthalmic Products", e: "Polarized lenses reduce glare from reflective surfaces like water." },
-{ q: "Which lens material has the lowest specific gravity?", o: ["Glass", "High-index", "Trivex", "Polycarbonate"], a: 2, c: "Ophthalmic Products", e: "Trivex has a lower specific gravity, making it lightweight." },
-{ q: "The main advantage of spring hinges in frames is:", o: ["Easier lens insertion", "Increased durability", "Greater comfort and flexibility", "Lower cost"], a: 2, c: "Ophthalmic Products", e: "Spring hinges provide comfort and flexibility for better fit." },
-{ q: "A patient requests lenses that provide the best possible scratch resistance. Which do you recommend?", o: ["Glass", "CR-39 with hard coat", "Polycarbonate", "High-index"], a: 0, c: "Ophthalmic Products", e: "Glass is the most scratch-resistant lens material." },
-{ q: "Which frame shape is generally recommended for patients with high minus lenses?", o: ["Large round", "Oval", "Small round or oval", "Wide rectangular"], a: 2, c: "Ophthalmic Products", e: "Smaller frames reduce lens thickness for high minus prescriptions." },
-{ q: "What is the proper way to check a frame for four-point alignment?", o: ["Check on the face", "Check on a surface plate", "Check with a lens clock", "Check with a ruler"], a: 1, c: "Ophthalmic Dispensing", e: "Four-point alignment is checked on a flat surface to ensure frame balance." },
-{ q: "If the right lens appears higher than the left when worn, how should you adjust?", o: ["Raise left temple", "Lower right temple", "Shorten right temple", "Open bridge"], a: 0, c: "Ophthalmic Dispensing", e: "Raising the left temple balances the frame height." },
-{ q: "What adjustment corrects a frame sitting too low on the face?", o: ["Widen nosepads", "Tighten temples", "Decrease pantoscopic tilt", "Shorten temples"], a: 0, c: "Ophthalmic Dispensing", e: "Widening nosepads lifts the frame higher on the nose." },
-{ q: "The pantoscopic tilt of a frame is:", o: ["Tilt of the frame towards the cheeks", "Vertical inclination of the temples", "Distance between lenses", "Angle of bridge"], a: 0, c: "Ophthalmic Dispensing", e: "Pantoscopic tilt is the downward angle of the frame toward the cheeks." },
-{ q: "What is the main purpose of face form (wrap angle) adjustment?", o: ["Reduce chromatic aberration", "Improve cosmetic appearance", "Improve field of vision and fit", "Increase lens thickness"], a: 2, c: "Ophthalmic Dispensing", e: "Face form improves fit and widens the field of vision." },
-{ q: "What tool is used to adjust nosepads?", o: ["Screwdriver", "Surface plate", "Nosepad pliers", "Lens clock"], a: 2, c: "Ophthalmic Dispensing", e: "Nosepad pliers are used for precise nosepad adjustments." },
-{ q: "A patient’s glasses slide down their nose. What is the best adjustment?", o: ["Tighten temples", "Open bridge", "Lower nosepads", "Close nosepads"], a: 3, c: "Ophthalmic Dispensing", e: "Closing nosepads increases grip to prevent sliding." },
-{ q: "Which measurement is most critical when fitting progressive addition lenses?", o: ["Pantoscopic tilt", "Vertex distance", "Monocular PD", "A size"], a: 2, c: "Ophthalmic Dispensing", e: "Monocular PD ensures proper alignment of progressive corridors." },
-{ q: "What is the function of the bench alignment in dispensing?", o: ["Check seg height", "Check PD", "Ensure the frame is symmetrical and level", "Measure vertex distance"], a: 2, c: "Ophthalmic Dispensing", e: "Bench alignment ensures the frame is level and symmetrical." },
-{ q: "If a frame sits too far from the face, how is it adjusted?", o: ["Increase vertex distance", "Decrease face form", "Decrease vertex distance", "Increase pantoscopic tilt"], a: 2, c: "Ophthalmic Dispensing", e: "Decreasing vertex distance brings the frame closer to the face." },
-{ q: "Which segment height measurement is most critical for bifocals?", o: ["From lower lid margin", "From pupil center", "From eyebrow", "From geometric center"], a: 0, c: "Ophthalmic Dispensing", e: "Bifocal segment height is measured from the lower lid margin." },
-{ q: "The optical center of the lens should align with:", o: ["Segment top", "Pupil", "Bridge", "Frame midline"], a: 1, c: "Ophthalmic Dispensing", e: "The optical center aligns with the pupil for optimal vision." },
-{ q: "Which tool is used to check a frame for X-ing?", o: ["PD ruler", "Alignment pliers", "Surface plate", "Lensometer"], a: 2, c: "Ophthalmic Dispensing", e: "A surface plate checks for frame twisting (X-ing)." },
-{ q: "If the frame front is twisted, what adjustment is required?", o: ["Adjust temples", "Realign bridge", "Align on surface plate", "Replace lenses"], a: 2, c: "Ophthalmic Dispensing", e: "Aligning on a surface plate corrects frame twisting." },
-{ q: "A patient complains of eyelashes brushing the lenses. What should you check?", o: ["Vertex distance and pantoscopic tilt", "Face form", "Temple length", "Frame size"], a: 0, c: "Ophthalmic Dispensing", e: "Vertex distance and pantoscopic tilt affect lens proximity to the eyes." },
-{ q: "When fitting frames with adjustable nosepads, you should ensure:", o: ["Nosepads are flush with the frame", "Nosepads fit the shape of the nose and distribute weight evenly", "Nosepads are as close as possible", "Nosepads are very wide apart"], a: 1, c: "Ophthalmic Dispensing", e: "Nosepads should conform to the nose for even weight distribution." },
-{ q: "If a patient’s right eye is closer to the lens than the left, which adjustment corrects this?", o: ["Increase face form", "Decrease pantoscopic tilt", "Bend right temple inward", "Bend right temple outward"], a: 3, c: "Ophthalmic Dispensing", e: "Bending the right temple outward increases vertex distance on that side." },
-{ q: "Which scenario requires rechecking monocular PDs?", o: ["Switching from single vision to progressives", "Changing from metal to plastic frames", "Using a different dispensing table", "Patient has astigmatism"], a: 0, c: "Ophthalmic Dispensing", e: "Progressives require precise monocular PDs for proper lens alignment." },
-{ q: "If a patient’s glasses feel tight at the temples, the best adjustment is:", o: ["Bend temple tips inward", "Widen temples at the hinge", "Raise pantoscopic tilt", "Narrow the bridge"], a: 1, c: "Ophthalmic Dispensing", e: "Widening temples at the hinge relieves pressure." },
-{ q: "The major reference point (MRP) on a lens is:", o: ["Always at pupil center", "Where prescribed prism is measured", "At the geometric center", "At the seg top"], a: 1, c: "Ophthalmic Dispensing", e: "The MRP is where prism is measured, typically aligned with the pupil." },
-{ q: "When dispensing high-powered plus lenses, which frame selection is best?", o: ["Large frame with wide bridge", "Small, round frame", "Semi-rimless", "Rimless"], a: 1, c: "Ophthalmic Dispensing", e: "Larger frames with wide bridges support thick plus lenses." },
-{ q: "A progressive lens user complains of swim and distortion. What is the most likely the cause?", o: ["Incorrect vertex distance", "Incorrect base curve", "Incorrect fitting height or PD", "Too much face form"], a: 2, c: "Ophthalmic Dispensing", e: "Incorrect fitting height or PD causes distortion in progressives." },
-{ q: "How should you adjust temples to relieve pressure behind the ear?", o: ["Shorten temples", "Add more curve to temple tips", "Bend temple tips outward", "Bend temple tips inward"], a: 2, c: "Ophthalmic Dispensing", e: "Bending temple tips outward reduces pressure behind the ear." },
-{ q: "The minimum blank size (MBS) for edging is calculated using:", o: ["A size + B size + ED", "ED + 2 × decentration + 2 mm", "A size + DBL", "PD + B size"], a: 1, c: "Ophthalmic Dispensing", e: "MBS is calculated as effective diameter plus twice the decentration plus 2 mm." },
-{ q: "For which patient would you most likely recommend a saddle bridge?", o: ["Prominent nose bridge", "Low, flat nose bridge", "High minus lenses", "Child"], a: 1, c: "Ophthalmic Dispensing", e: "A saddle bridge fits well on prominent nose bridges." },
-{ q: "What effect does increasing face form (wrap) have on horizontal prism?", o: ["No effect", "Induces base-in prism", "Induces base-out prism", "Induces vertical prism"], a: 2, c: "Ophthalmic Dispensing", e: "Increasing face form induces base-out prism due to lens tilt." },
-{ q: "A patient’s bifocal line is visible when looking straight ahead. What is the most likely error?", o: ["Bifocal too high", "Pantoscopic tilt too great", "Bridge too low", "Temples too short"], a: 0, c: "Ophthalmic Dispensing", e: "A bifocal segment set too high causes the line to be visible in distance vision." },
-{ q: "If a patient reports that only one eye is clear in a new pair of glasses, what should be checked first?", o: ["Seg height", "PD and lens axis", "Face form", "Temple length"], a: 1, c: "Ophthalmic Dispensing", e: "PD and lens axis alignment are critical for clear binocular vision." },
-{ q: "What is the correct way to check that the optical centers are aligned in both lenses?", o: ["Measure seg height", "Check four-point alignment", "Verify with lensometer and PD ruler", "Check on surface plate"], a: 2, c: "Ophthalmic Dispensing", e: "A lensometer and PD ruler confirm optical center alignment." },
-{ q: "A frame with too much pantoscopic tilt will cause:", o: ["Clearer near vision", "Blurry distance vision", "Thicker edges", "Less comfort on the nose"], a: 1, c: "Ophthalmic Dispensing", e: "Excessive pantoscopic tilt shifts the optical center, blurring distance vision." },
-{ q: "A patient’s frame slips down during reading. What is the best solution?", o: ["Tighten temples", "Increase panto tilt", "Widen nosepads", "Decrease face form"], a: 0, c: "Ophthalmic Dispensing", e: "Tightening temples prevents the frame from slipping." },
-{ q: "When dispensing progressive lenses, the fitting cross should align with:", o: ["Lower eyelid margin", "Center of the pupil", "Segment top", "Geometric center"], a: 1, c: "Ophthalmic Dispensing", e: "The fitting cross aligns with the pupil center for proper progressive lens function." },
-{ q: "A patient’s temples bow out at the tips. The best adjustment is:", o: ["Bend temple tips inward", "Shorten temples", "Add pantoscopic tilt", "Widen bridge"], a: 0, c: "Ophthalmic Dispensing", e: "Bending temple tips inward corrects outward bowing." },
-{ q: "To increase vertex distance, you would:", o: ["Bend nosepads out", "Bend nosepads in", "Increase face form", "Shorten temples"], a: 0, c: "Ophthalmic Dispensing", e: "Bending nosepads out increases vertex distance." },
-{ q: "If a progressive lens user has difficulty adapting, what should you check?", o: ["Fitting height and monocular PD", "Temple length", "Face form", "A size"], a: 0, c: "Ophthalmic Dispensing", e: "Fitting height and monocular PD are critical for progressive lens adaptation." },
-{ q: "A frame that sits too high on the nose may require:", o: ["Raise nosepads", "Lower nosepads", "Shorten temples", "Widen endpieces"], a: 1, c: "Ophthalmic Dispensing", e: "Lowering nosepads lowers the frame on the nose." },
-{ q: "When adjusting a plastic frame for four-point alignment, the frame must:", o: ["Touch all four points on a surface plate simultaneously", "Be heated and then bent", "Be checked for pantoscopic tilt", "Be checked on the patient’s face"], a: 0, c: "Ophthalmic Dispensing", e: "Four-point alignment requires all four frame points to touch a surface plate." },
-{ q: "Which U.S. federal agency enforces minimum impact resistance for all prescription spectacle lenses?", o: ["ANSI", "FDA", "OSHA", "FTC"], a: 1, c: "Regulations & Standards", e: "The FDA enforces impact resistance standards for spectacle lenses." },
-{ q: "The ANSI Z80.1 standard primarily applies to which optical product?", o: ["Contact lenses", "Spectacle lenses", "Frames", "Reading lights"], a: 1, c: "Regulations & Standards", e: "ANSI Z80.1 sets standards for spectacle lens tolerances." },
-{ q: "Which test is legally required for all prescription ophthalmic lenses sold in the U.S.?", o: ["Flammability", "Drop Ball", "UV Absorption", "Blue Light Transmission"], a: 1, c: "Regulations & Standards", e: "The drop ball test ensures lens impact resistance per FDA regulations." },
-{ q: "What is the sphere power tolerance (≤±6.50D) allowed by ANSI Z80.1?", o: ["±0.06D", "±0.12D", "±0.13D", "±0.16D"], a: 2, c: "Regulations & Standards", e: "ANSI Z80.1 allows ±0.13D tolerance for sphere powers up to ±6.50D." },
-{ q: "ANSI Z87.1 is a standard primarily associated with:", o: ["Safety eyewear", "Multifocal lenses", "Polarized sunglasses", "Children's frames"], a: 0, c: "Regulations & Standards", e: "ANSI Z87.1 governs safety eyewear standards." },
-{ q: "According to the FDA, which of the following must be done to every finished prescription lens before dispensing?", o: ["Scratch testing", "Drop ball impact test", "UV treatment", "Frame fitting"], a: 1, c: "Regulations & Standards", e: "The FDA requires a drop ball test for all prescription lenses." },
-{ q: "Which of the following does OSHA regulate for dispensaries and labs?", o: ["Spectacle lens powers", "Occupational safety and health", "Patient's PD", "Contact lens cleaning"], a: 1, c: "Regulations & Standards", e: "OSHA regulates workplace safety, including in optical labs." },
-{ q: "Which U.S. law grants patients the right to obtain a copy of their prescription?", o: ["HIPAA", "Patient’s Bill of Rights", "Eyeglass Rule", "FDA Modernization Act"], a: 2, c: "Regulations & Standards", e: "The Eyeglass Rule ensures patients receive their prescription." },
-{ q: "Which statement about state optician licensing is true?", o: ["All U.S. states require optician licensing", "No U.S. states require optician licensing", "Requirements vary by state", "Licensing is federal"], a: 2, c: "Regulations & Standards", e: "Optician licensing requirements differ across U.S. states." },
-{ q: "When must a patient be offered a copy of their spectacle prescription by law?", o: ["Only after purchase", "After eye exam, even if they don't buy glasses", "Only on request", "Never"], a: 1, c: "Regulations & Standards", e: "The Eyeglass Rule mandates offering a prescription copy post-exam." }
-]; QUESTIONS = QUESTIONS.slice(0, 100);
-
-const CATEGORIES = [...new Set(QUESTIONS.map(q => q.c))];
-function shuffleArray(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-}
-
-const FEATURE_DEFAULTS = {
-  simulated: false,
-  instantFeedback: true,
-  showTimer: true,
-  showProgress: true,
-  darkMode: false,
-  questionCount: 100,
-  timerSpeed: 1,
-  category: "All"
-};
-
-let state = {
-  step: "menu",
-  qIdx: 0,
-  answers: [],
-  marked: new Set(),
-  incorrect: new Set(),
-  timeLeft: 9000,
-  timerActive: false,
-  results: [],
-  streaks: { count: 0, lastDate: null },
-  achievements: [],
-  activeQuestions: [],
-  ...FEATURE_DEFAULTS
-};
-
-try {
-  const saved = JSON.parse(localStorage.getItem('aboTestState') || '{}');
-  state = { ...state, ...saved, marked: new Set(saved.marked || []), incorrect: new Set(saved.incorrect || []) };
-} catch (e) {
-  console.error("Failed to load saved state:", e);
-}
-
-function renderMenu() {
-  document.body.className = state.darkMode ? "dark" : "";
-  let reviewList = state.marked.size > 0 ? `
-    <div class="review-list">
-      <h3>Marked Questions</h3>
-      <ul>
-        ${Array.from(state.marked).map(i => `<li><a href="#" onclick="goToQuestion(${i})">Question ${i + 1}: ${QUESTIONS[i].q.substring(0, 30)}...</a></li>`).join('')}
-      </ul>
-    </div>
-  ` : '';
-  let progressHTML = state.results.length > 0 ? `
-    <div class="progress-section">
-      <h3>Progress</h3>
-      <table class="progress-table">
-        <tr><th>Date</th><th>Score</th><th>Questions</th><th>Categories</th></tr>
-        ${state.results.slice(-5).map(r => `<tr><td>${new Date(r.timestamp).toLocaleDateString()}</td><td>${r.score}/${r.total}</td><td>${r.total}</td><td>${r.categories.join(', ')}</td></tr>`).join('')}
-      </table>
-      <div class="achievement">Streak: ${state.streaks.count} day${state.streaks.count !== 1 ? 's' : ''}</div>
-      ${state.achievements.length > 0 ? `<div class="achievement">Achievements: ${state.achievements.join(', ')}</div>` : ''}
-    </div>
-  ` : '';
-  let html = `
-    <div class="header">
-      <div class="logo-main">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10" fill="none" stroke="var(--button-bg)" stroke-width="2"/>
-          <circle cx="12" cy="12" r="4" fill="var(--button-bg)"/>
-        </svg>
-        BoardScope <span>by CW</span>
-      </div>
-    </div>
-    <div class="setup-panel">
-      <label><input type="checkbox" id="simulated" ${state.simulated ? "checked" : ""}> Simulate Real ABO Exam <span style="font-weight:400;font-size:.9em;">(Timer, no instant feedback, one question at a time)</span></label>
-      <label><input type="checkbox" id="instantFeedback" ${state.instantFeedback ? "checked" : ""} ${state.simulated ? "disabled" : ""}> Show instant right/wrong feedback <span style="font-weight:400;font-size:.9em;">(Practice mode only)</span></label>
-      <label><input type="checkbox" id="showTimer" ${state.showTimer ? "checked" : ""} ${state.simulated ? "disabled" : ""}> Show timer</label>
-      <label><input type="checkbox" id="showProgress" ${state.showProgress ? "checked" : ""}> Show progress bar</label>
-      <label><input type="checkbox" id="darkMode" ${state.darkMode ? "checked" : ""}> Dark mode</label>
-      <label>Number of Questions:
-        <select id="questionCount">
-          <option value="25" ${state.questionCount === 25 ? "selected" : ""}>25</option>
-          <option value="50" ${state.questionCount === 50 ? "selected" : ""}>50</option>
-          <option value="100" ${state.questionCount === 100 ? "selected" : ""}>100</option>
-        </select>
-      </label>
-      <label>Category:
-        <select id="category">
-          <option value="All" ${state.category === "All" ? "selected" : ""}>All Categories</option>
-          ${CATEGORIES.map(c => `<option value="${c}" ${state.category === c ? "selected" : ""}>${c}</option>`).join('')}
-        </select>
-      </label>
-      <label>Timer Speed:
-        <select id="timerSpeed">
-          <option value="0" ${state.timerSpeed === 0 ? "selected" : ""}>Untimed</option>
-          <option value="0.5" ${state.timerSpeed === 0.5 ? "selected" : ""}>0.5x (Slower)</option>
-          <option value="1" ${state.timerSpeed === 1 ? "selected" : ""}>1x (Normal)</option>
-          <option value="2" ${state.timerSpeed === 2 ? "selected" : ""}>2x (Faster)</option>
-        </select>
-      </label>
-    </div>
-    <div class="controls">
-      <button onclick="startTest()">Start Test</button>
-      <button onclick="startQuickReview()">Quick Review</button>
-      <button onclick="clearProgress()">Clear Saved Progress</button>
-    </div>
-    ${reviewList}
-    ${progressHTML}
-  `;
-  document.getElementById('app').innerHTML = html;
-  document.getElementById("simulated").onchange = e => {
-    state.simulated = e.target.checked;
-    if (state.simulated) {
-      state.instantFeedback = false;
-      state.showTimer = true;
-    }
-    saveProgress();
-    renderMenu();
-  };
-  ["instantFeedback", "showTimer", "showProgress", "darkMode"].forEach(id => {
-    let el = document.getElementById(id);
-    if (el) el.onchange = e => {
-      state[id] = e.target.checked;
-      if (id === "darkMode") document.body.className = state.darkMode ? "dark" : "";
-      saveProgress();
-      renderMenu();
-    };
-  });
-  document.getElementById("questionCount").onchange = e => {
-    state.questionCount = parseInt(e.target.value);
-    saveProgress();
-    renderMenu();
-  };
-  document.getElementById("category").onchange = e => {
-    state.category = e.target.value;
-    saveProgress();
-    renderMenu();
-  };
-  document.getElementById("timerSpeed").onchange = e => {
-    state.timerSpeed = parseFloat(e.target.value);
-    saveProgress();
-    renderMenu();
-  };
-}
-
-function renderTest() {
-  document.body.className = state.darkMode ? "dark" : "";
-  let q = state.activeQuestions[state.qIdx];
-  let isMarked = state.marked.has(QUESTIONS.indexOf(q));
-  let markButtonText = isMarked ? "Unmark" : "Mark for Review";
-  let progressHTML = state.showProgress ? `
-    <div class="progressbar-bg" style="margin:15px 0;">
-      <div class="progressbar-fg" style="width:${((state.qIdx+1)/state.activeQuestions.length)*100}%;"></div>
-    </div>
-  ` : "";
-  let timerHTML = state.showTimer ? `<span class="timer">${formatTime(state.timeLeft)}</span>` : "";
-  let explanationHTML = (state.answers[state.qIdx] != null && !state.simulated && state.instantFeedback) ? `
-    <button onclick="showExplanation()">View Explanation</button>
-    <div class="explanation-popup" id="explanationPopup">
-      <p>${q.e}</p>
-      <button onclick="document.getElementById('explanationPopup').style.display='none'">Close</button>
-    </div>
-  ` : "";
-  let navHTML = `
-    <div class="controls">
-      <button class="mark-btn" onclick="toggleMark()">${markButtonText}</button>
-      <button onclick="prevQ()" ${state.qIdx===0?"disabled":""}>Previous</button>
-      <button onclick="goMenu()" class="menu-btn">Menu</button>
-      <button onclick="nextQ()" ${state.qIdx===state.activeQuestions.length-1?"disabled":""}>Next</button>
-    </div>
-  `;
-  let optHTML = q.o.map((opt,i) => {
-    let btnClass = "";
-    if (state.answers[state.qIdx] != null && state.instantFeedback && !state.simulated) {
-      if (i === q.a) btnClass = "correct";
-      else if (i === state.answers[state.qIdx] && i !== q.a) btnClass = "wrong";
-    }
-    return `<button class="${btnClass}" onclick="choose(${i})">${opt}</button>`;
-  }).join("");
-  let flagHTML = isMarked ? `<svg class="mark-flag" viewBox="0 0 24 24"><path fill="var(--mark-border)" d="M5 4h14v10l-7 7-7-7V4z"/></svg>` : "";
-  document.getElementById('app').innerHTML = `
-    <div class="logo-wordmark">BoardScope</div>
-    ${timerHTML}
-    ${progressHTML}
-    <div class="question ${isMarked ? 'marked' : ''}">
-      ${flagHTML}
-      <span class="category-label">${q.c}</span><br>
-      ${state.qIdx+1}. ${q.q}
-    </div>
-    <div class="options">${optHTML}</div>
-    ${explanationHTML}
-    ${navHTML}
-  `;
-  document.addEventListener('keydown', handleKeydown);
-}
-
-function renderResults() {
-  const timeSpent = formatTime((state.activeQuestions.length / 100 * 9000 * state.timerSpeed) - state.timeLeft);
-  document.body.className = state.darkMode ? "dark" : "";
-  let correct = state.answers.filter((a,i) => a === state.activeQuestions[i].a).length;
-  let catScores = {};
-  CATEGORIES.forEach(cat => catScores[cat] = [0,0]);
-  state.activeQuestions.forEach((q,i) => {
-    catScores[q.c][1]++;
-    if (state.answers[i] === q.a) catScores[q.c][0]++;
-  });
-  let catRows = CATEGORIES.filter(c => catScores[c][1] > 0).map(cat => `<tr><td>${cat}</td><td>${catScores[cat][0]}/${catScores[cat][1]}</td></tr>`).join("");
-  let missedQuestions = state.activeQuestions
-    .map((q,i) => state.answers[i] !== q.a ? `<li>${q.q} (Your answer: ${q.o[state.answers[i]]}, Correct: ${q.o[q.a]})</li>` : '')
-    .filter(x => x)
-    .join("");
-  document.getElementById('app').innerHTML = `
-    <div class="logo-wordmark">BoardScope</div>
-    <div class="result-card">
-      <h3>Test Complete!</h3>
-      <div><b>Score:</b> ${correct} / ${state.activeQuestions.length} &nbsp; (${((correct/state.activeQuestions.length)*100).toFixed(1)}%)</div>
-      <div><b>Time Spent:</b> ${timeSpent}</div>
-      <div><b>Category:</b> ${state.category}</div>
-      <table class="category-table"><tr><th>Category</th><th>Score</th></tr>${catRows}</table>
-      ${missedQuestions ? `<h4>Missed Questions:</h4><ul>${missedQuestions}</ul>` : ''}
-    </div>
-    <div class="controls">
-      <button onclick="exportPDF()">Export PDF</button>
-      <button onclick="goMenu()" class="menu-btn">Main Menu</button>
-    </div>
-  `;
-  document.removeEventListener('keydown', handleKeydown);
-}
-
-function startTest() {
-  let questions = [...QUESTIONS];
-  shuffleArray(questions);
-  state.activeQuestions = state.category === "All" ? questions.slice(0, state.questionCount) : questions.filter(q => q.c === state.category).slice(0, state.questionCount);
-  if (state.activeQuestions.length === 0) {
-    alert("No questions available for the selected category!");
-    return;
-  }
-  state.step = "test";
-  state.qIdx = 0;
-  state.answers = [];
-  state.marked = new Set();
-  state.timeLeft = state.timerSpeed === 0 ? Infinity : Math.round((state.activeQuestions.length / 100) * 9000 * state.timerSpeed);
-  state.timerActive = (state.simulated || state.showTimer) && state.timerSpeed !== 0;
-  saveProgress();
-  renderTest();
-  if (state.timerActive) startTimer();
-  updateStreaksAndAchievements();
-}
-
-function startQuickReview() {
-  let incorrect = Array.from(state.incorrect).map(i => QUESTIONS[i]);
-  let marked = Array.from(state.marked).map(i => QUESTIONS[i]);
-  state.activeQuestions = [...new Set([...incorrect, ...marked])];
-  if (state.activeQuestions.length === 0) {
-    alert("No incorrect or marked questions to review!");
-    return;
-  }
-  state.step = "test";
-  state.qIdx = 0;
-  state.answers = [];
-  state.marked = new Set();
-  state.timeLeft = state.timerSpeed === 0 ? Infinity : Math.round((state.activeQuestions.length / 100) * 9000 * state.timerSpeed);
-  state.timerActive = (state.simulated || state.showTimer) && state.timerSpeed !== 0;
-  saveProgress();
-  renderTest();
-  if (state.timerActive) startTimer();
-}
-
-function nextQ() {
-  if (state.qIdx < state.activeQuestions.length - 1) {
-    state.qIdx++;
-    saveProgress();
-    renderTest();
-  } else {
-    state.step = "results";
-    state.timerActive = false;
-    clearInterval(state.timerId);
-    state.timerId = null;
-    saveResults();
-    saveProgress();
-    renderResults();
-  }
-}
-
-function prevQ() {
-  if (state.qIdx > 0) {
-    state.qIdx--;
-    saveProgress();
-    renderTest();
-  }
-}
-
-function choose(i) {
-  state.answers[state.qIdx] = i;
-  if (i !== state.activeQuestions[state.qIdx].a) {
-    state.incorrect.add(QUESTIONS.indexOf(state.activeQuestions[state.qIdx]));
-  } else {
-    state.incorrect.delete(QUESTIONS.indexOf(state.activeQuestions[state.qIdx]));
-  }
-  saveProgress();
-  if (state.simulated || !state.instantFeedback) nextQ();
-  else renderTest();
-}
-
-function toggleMark() {
-  let idx = QUESTIONS.indexOf(state.activeQuestions[state.qIdx]);
-  if (state.marked.has(idx)) {
-    state.marked.delete(idx);
-  } else {
-    state.marked.add(idx);
-  }
-  saveProgress();
-  renderTest();
-}
-
-function goToQuestion(idx) {
-  state.qIdx = state.activeQuestions.indexOf(QUESTIONS[idx]);
-  state.step = "test";
-  saveProgress();
-  renderTest();
-}
-
-function showExplanation() {
-  document.getElementById('explanationPopup').style.display = 'block';
-}
-
-function goMenu() {
-  state.step = "menu";
-  state.timerActive = false;
-  clearInterval(state.timerId);
-  state.timerId = null;
-  saveProgress();
-  renderMenu();
-}
-
-function startTimer() {
-  if (!state.timerId && state.timeLeft !== Infinity) {
-    state.timerId = setInterval(() => {
-      if (state.timeLeft > 0 && state.step === "test") {
-        state.timeLeft--;
-        if (state.showTimer) {
-          let timerEl = document.querySelector(".timer");
-          if (timerEl) timerEl.textContent = formatTime(state.timeLeft);
-        }
-      } else {
-        clearInterval(state.timerId);
-        state.timerId = null;
-        if (state.step === "test") {
-          state.step = "results";
-          saveResults();
-          saveProgress();
-          renderResults();
-        }
-      }
-    }, 500); // Throttled to 500ms
-  }
-}
-
-function formatTime(secs) {
-  if (secs === Infinity) return "Untimed";
-  const h = Math.floor(secs / 3600);
-  const m = Math.floor((secs % 3600) / 60);
-  const s = secs % 60;
-  return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-}
-
-function saveProgress() {
-  try {
-    localStorage.setItem('aboTestState', JSON.stringify({
-      answers: state.answers,
-      marked: Array.from(state.marked),
-      incorrect: Array.from(state.incorrect),
-      qIdx: state.qIdx,
-      timeLeft: state.timeLeft,
-      step: state.step,
-      simulated: state.simulated,
-      instantFeedback: state.instantFeedback,
-      showTimer: state.showTimer,
-      showProgress: state.showProgress,
-      darkMode: state.darkMode,
-      questionCount: state.questionCount,
-      category: state.category,
-      timerSpeed: state.timerSpeed,
-      results: state.results,
-      streaks: state.streaks,
-      achievements: state.achievements
-    }));
-  } catch (e) {
-    console.error("Failed to save progress:", e);
-  }
-}
-
-function saveResults() {
-  let correct = state.answers.filter((a,i) => a === state.activeQuestions[i].a).length;
-  let categories = [...new Set(state.activeQuestions.map(q => q.c))];
-  state.results.push({
-    score: correct,
-    total: state.activeQuestions.length,
-    categories,
-    timestamp: new Date().toISOString()
-  });
-  if (correct === state.activeQuestions.length) {
-    if (!state.achievements.includes("Perfect Score")) {
-      state.achievements.push("Perfect Score");
-      alert("Achievement Unlocked: Perfect Score!");
-    }
-  }
-  if (state.results.length >= 5 && !state.achievements.includes("Dedicated Student")) {
-    state.achievements.push("Dedicated Student");
-    alert("Achievement Unlocked: Dedicated Student!");
-  }
-  let catScores = {};
-  CATEGORIES.forEach(c => catScores[c] = [0,0]);
-  state.activeQuestions.forEach((q,i) => {
-    catScores[q.c][1]++;
-    if (state.answers[i] === q.a) catScores[q.c][0]++;
-  });
-  if (Object.values(catScores).every(([correct, total]) => total === 0 || correct/total >= 0.9) && !state.achievements.includes("Category Master")) {
-    state.achievements.push("Category Master");
-    alert("Achievement Unlocked: Category Master!");
-  }
-}
-
-function updateStreaksAndAchievements() {
-  const today = new Date().toDateString();
-  if (state.streaks.lastDate) {
-    const last = new Date(state.streaks.lastDate);
-    const diff = (new Date(today) - last) / (1000 * 60 * 60 * 24);
-    if (diff === 1) {
-      state.streaks.count++;
-    } else if (diff > 1) {
-      state.streaks.count = 1;
-    }
-  } else {
-    state.streaks.count = 1;
-  }
-  state.streaks.lastDate = today;
-  if (state.streaks.count >= 3 && !state.achievements.includes("Three-Day Streak")) {
-    state.achievements.push("Three-Day Streak");
-    alert("Achievement Unlocked: Three-Day Streak!");
-  }
-  saveProgress();
-}
-
-function clearProgress() {
-  try {
-    localStorage.removeItem('aboTestState');
-    state = {
-      step: "menu",
-      qIdx: 0,
-      answers: [],
-      marked: new Set(),
-      incorrect: new Set(),
-      timeLeft: 9000,
-      timerActive: false,
-      results: [],
-      streaks: { count: 0, lastDate: null },
-      achievements: [],
-      activeQuestions: [],
-      ...FEATURE_DEFAULTS
-    };
-    saveProgress();
-    renderMenu();
-  } catch (e) {
-    console.error("Failed to clear progress:", e);
-  }
-}
-
-function exportPDF() {
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("BoardScope by CW - Test Results", 20, 20);
-    doc.setFontSize(12);
-    let correct = state.answers.filter((a,i) => a === state.activeQuestions[i].a).length;
-    let timeSpent = formatTime((state.activeQuestions.length / 100 * 9000 * state.timerSpeed) - state.timeLeft);
-    doc.text(`Score: ${correct} / ${state.activeQuestions.length} (${((correct/state.activeQuestions.length)*100).toFixed(1)}%)`, 20, 30);
-    doc.text(`Time Spent: ${timeSpent}`, 20, 40);
-    doc.text(`Category: ${state.category}`, 20, 50);
-    let catScores = {};
-    CATEGORIES.forEach(cat => catScores[cat] = [0,0]);
-    state.activeQuestions.forEach((q,i) => {
-      catScores[q.c][1]++;
-      if (state.answers[i] === q.a) catScores[q.c][0]++;
-    });
-    let y = 60;
-    doc.text("Category Scores:", 20, y);
-    CATEGORIES.filter(c => catScores[c][1] > 0).forEach(cat => {
-      y += 10;
-      doc.text(`${cat}: ${catScores[cat][0]}/${catScores[cat][1]}`, 20, y);
-    });
-    let missedQuestions = state.activeQuestions
-      .map((q,i) => state.answers[i] !== q.a ? `${i+1}. ${q.q}\n   Your answer: ${q.o[state.answers[i]]}\n   Correct: ${q.o[q.a]}\n   Explanation: ${q.e}` : '')
-      .filter(x => x);
-    if (missedQuestions.length > 0) {
-      y += 10;
-      doc.text("Missed Questions:", 20, y);
-      missedQuestions.forEach((q, i) => {
-        y += 20;
-        doc.text(q, 20, y, { maxWidth: 160 });
-      });
-    }
-    doc.save("BoardScope_by_CW_Results.pdf");
-  } catch (e) {
-    console.error("Failed to export PDF:", e);
-    alert("Failed to export PDF. Please ensure jsPDF is loaded correctly.");
-  }
-}
-
-function calcClear() {
-  document.getElementById('calc-display').value = '0';
-}
-
-function calcBack() {
-  let display = document.getElementById('calc-display');
-  display.value = display.value.slice(0, -1) || '0';
-}
-
-function calcInsert(val) {
-  let display = document.getElementById('calc-display');
-  if (display.value === '0' && val !== '.') display.value = '';
-  display.value += val;
-}
-
-function calcSquare() {
-  let display = document.getElementById('calc-display');
-  try {
-    display.value = math.evaluate(`(${display.value})^2`);
-  } catch (e) {
-    display.value = 'Error';
-  }
-}
-
-function calcSqrt() {
-  let display = document.getElementById('calc-display');
-  try {
-    display.value = math.evaluate(`sqrt(${display.value})`);
-  } catch (e) {
-    display.value = 'Error';
-  }
-}
-
-function calcEquals() {
-  let display = document.getElementById('calc-display');
-  try {
-    display.value = math.evaluate(display.value);
-  } catch (e) {
-    display.value = 'Error';
-  }
-}
-
-function toggleCalculator() {
-  let modal = document.getElementById('calculatorModal');
-  modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
-}
-
-function handleKeydown(e) {
-  if (state.step !== "test") return;
-  if (e.key >= '1' && e.key <= '4') {
-    choose(parseInt(e.key) - 1);
-  } else if (e.key === 'ArrowLeft' && state.qIdx > 0) {
-    prevQ();
-  } else if (e.key === 'ArrowRight' && state.qIdx < state.activeQuestions.length - 1) {
-    nextQ();
-  } else if (e.key.toLowerCase() === 'm') {
-    toggleMark();
-  } else if (e.key === 'Escape') {
-    goMenu();
-  }
-}
-
-let isDragging = false;
-let currentX, currentY, xOffset = 0, yOffset = 0;
-
-document.getElementById('calculatorHeader').addEventListener('mousedown', (e) => {
-  isDragging = true;
-  currentX = e.clientX - xOffset;
-  currentY = e.clientY - yOffset;
-});
-
-document.addEventListener('mousemove', (e) => {
-  if (isDragging) {
-    e.preventDefault();
-    xOffset = e.clientX - currentX;
-    yOffset = e.clientY - currentY;
-    let modal = document.getElementById('calculatorModal');
-    modal.style.right = 'auto';
-    modal.style.bottom = 'auto';
-    modal.style.left = `${e.clientX - currentX}px`;
-    modal.style.top = `${e.clientY - currentY}px`;
-  }
-});
-
-document.addEventListener('mouseup', () => {
-  isDragging = false;
-});
-
-if (state.step === "menu") {
-  renderMenu();
-} else if (state.step === "test") {
-  renderTest();
-  if (state.timerActive) startTimer();
-} else if (state.step === "results") {
-  renderResults();
-}
-  </script>
+  <div class="toggle-calc" onclick="toggleCalculator()">🧮</div>
+  <script src="part2.js"></script>
+  <script src="part3.js"></script>
+  <script src="part4.js"></script>
 </body>
-
 </html>
-
