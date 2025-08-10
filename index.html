@@ -1,0 +1,920 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>BoardScope by CW — Quality Study Build</title>
+<style>
+:root {
+  --bg:#f4f7fb; --card:#fff; --ink:#0f172a; --muted:#64748b;
+  --primary:#2563eb; --primary-ink:#fff; --accent:#0ea5e9;
+}
+* { box-sizing:border-box; }
+body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+.container { max-width: 860px; margin: 24px auto; padding: 0 16px; }
+.header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.badge { width:44px; height:44px; border-radius:12px; background:linear-gradient(135deg,var(--primary),var(--accent)); display:grid; place-items:center; color:#fff; font-weight:800; }
+.h1 { font-weight:800; font-size: 24px; letter-spacing:.2px; }
+.card { background:var(--card); border:1px solid rgba(15,23,42,.06); border-radius:14px; box-shadow:0 6px 16px rgba(15,23,42,.06); padding:16px; }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.controls button, .controls .btn { border:1px solid rgba(15,23,42,.08); background:#fff; color:var(--ink); padding:10px 14px; border-radius:10px; box-shadow:0 1px 2px rgba(15,23,42,.08); cursor:pointer; }
+.controls .primary { background: var(--primary); color:var(--primary-ink); }
+.controls select, .controls input[type="text"] { padding:9px 12px; border-radius:10px; border:1px solid rgba(15,23,42,.15); }
+.options { display:grid; grid-template-columns: 1fr; gap:10px; }
+.options button { width:100%; text-align:left; border:1px solid rgba(15,23,42,.12); background:#fff; padding:10px 12px; border-radius:10px; }
+.options button.correct { outline:2px solid #10b981; }
+.options button.wrong { outline:2px solid #ef4444; }
+.kv { display:grid; gap:6px; }
+.kv label { display:flex; align-items:center; gap:8px; }
+.progress { height:10px; background:#e2e8f0; border-radius:8px; overflow:hidden; }
+.progress > div { height:100%; background:var(--primary); width:0%; }
+.fab { position:fixed; right:16px; bottom:16px; width:48px; height:48px; border-radius:50%; display:grid; place-items:center; background:var(--primary); color:#fff; box-shadow:0 8px 20px rgba(15,23,42,.25); }
+textarea.note { width:100%; min-height:90px; padding:10px; border-radius:10px; border:1px solid rgba(15,23,42,.15); }
+.small { font-size:.9em; color:var(--muted); }
+</style>
+
+<script>
+(function(){
+  function show(msg){
+    var d=document.getElementById('errbox');
+    if(!d){
+      d=document.createElement('div'); d.id='errbox';
+      d.style.cssText='position:fixed;left:10px;bottom:10px;max-width:90vw;z-index:2000;background:#fff3f3;color:#900;border:1px solid #f99;padding:8px 10px;border-radius:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;';
+      document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(d); }, {once:true});
+    }
+    try{ d.textContent = (d.textContent? d.textContent+'\n':'') + msg; }catch(e){}
+    console.log('[QualityDebug]', msg);
+  }
+  window.addEventListener('error', function(e){ show('[error] '+e.message+' @ '+e.filename+':'+e.lineno+':'+e.colno); });
+  window.addEventListener('unhandledrejection', function(e){ show('[promise] '+(e.reason && e.reason.message ? e.reason.message : e.reason)); });
+  document.addEventListener('DOMContentLoaded', function(){ 
+    show('DOMContentLoaded');
+    try{ if (typeof menu==='function') { menu(); show('menu() called'); } } catch(err){ show('menu error: '+err.message); }
+  }, {once:true});
+})();
+</script>
+
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="badge">BS</div>
+    <div class="h1">BoardScope <span class="small">by CW</span></div>
+  </div>
+
+  <div id="app" class=""></div>
+</div>
+
+<button class="fab" onclick="toggleCalc()">🧮</button>
+<div id="calc" style="display:none; position:fixed; right:16px; bottom:72px;" class="card">
+  <div style="font-weight:700;">Calculator</div>
+  <input id="calcDisplay" value="0" style="width:220px; padding:8px; margin:8px 0;" />
+  <div class="row">
+    <button onclick="ci('7')">7</button><button onclick="ci('8')">8</button><button onclick="ci('9')">9</button><button onclick="cb()">⌫</button>
+    <button onclick="ci('4')">4</button><button onclick="ci('5')">5</button><button onclick="ci('6')">6</button><button onclick="ci('/')">/</button>
+    <button onclick="ci('1')">1</button><button onclick="ci('2')">2</button><button onclick="ci('3')">3</button><button onclick="ci('*')">*</button>
+    <button onclick="ci('0')">0</button><button onclick="ci('.')">.</button><button onclick="ci('-')">-</button><button onclick="ci('+')">+</button>
+    <button onclick="csq()">x²</button><button onclick="csqrt()">√</button><button onclick="cc()">C</button><button onclick="ce()">=</button>
+  </div>
+</div>
+
+<script>
+let QUESTIONS = [
+  // Lens Basics (30 questions, including math)
+  { q: "What is the standard pupillary distance range for adults?", o: ["50-70 mm", "30-50 mm", "30-40 mm", "70-80 mm"], a: 0, c: "Lens Basics", e: "Pupillary distance (PD) typically ranges from 50 to 70 mm for adults." },
+  { q: "Which lens material has the highest index of refraction?", o: ["CR-39", "Polycarbonate", "Trivex", "High-index 1.74"], a: 3, c: "Lens Basics", e: "High-index 1.74 has the highest refraction index for thinner lenses." },
+  { q: "What lens corrects nearsightedness?", o: ["Convex", "Concave", "Bifocal", "Prism"], a: 1, c: "Lens Basics", e: "Concave lenses diverge light to correct myopia (nearsightedness)." },
+  { q: "What is the focal length of a +4.00D lens?", o: ["0.25m", "0.5m", "1m", "4m"], a: 0, c: "Lens Basics", e: "Focal length = 1/D = 1/4 = 0.25m." },
+  { q: "Which coating reduces glare?", o: ["Scratch-resistant", "UV", "Anti-reflective", "Tint"], a: 2, c: "Lens Basics", e: "Anti-reflective coating reduces glare and reflections." },
+  { q: "What is the minimum center thickness for polycarbonate lenses?", o: ["1.0mm", "1.5mm", "2.0mm", "2.5mm"], a: 0, c: "Lens Basics", e: "1.0mm is the minimum for impact resistance in polycarbonate." },
+  { q: "Which lens type is used for presbyopia?", o: ["Single vision", "Bifocal", "Progressive", "Aspheric"], a: 2, c: "Lens Basics", e: "Progressive lenses correct presbyopia without visible lines." },
+  { q: "What is the power of a lens with 0.5m focal length?", o: ["+2.00D", "+0.5D", "+4.00D", "-2.00D"], a: 0, c: "Lens Basics", e: "Power = 1/f = 1/0.5 = +2.00D." },
+  { q: "Which lens material is most impact-resistant?", o: ["Glass", "CR-39", "Polycarbonate", "High-index"], a: 2, c: "Lens Basics", e: "Polycarbonate is the most impact-resistant." },
+  { q: "What coating blocks UV rays?", o: ["Anti-reflective", "Scratch-resistant", "UV coating", "Mirror coating"], a: 2, c: "Lens Basics", e: "UV coating blocks harmful ultraviolet rays." },
+  { q: "What is the Abbe value?", o: ["Dispersion measure", "Power measure", "Thickness measure", "Curvature measure"], a: 0, c: "Lens Basics", e: "The Abbe value measures lens dispersion." },
+  { q: "Which lens for computer use?", o: ["Single vision", "Bifocal", "Progressive", "Blue light filter"], a: 3, c: "Lens Basics", e: "Blue light filter lenses reduce screen strain." },
+  { q: "What is the index of refraction for CR-39?", o: ["1.49", "1.58", "1.66", "1.74"], a: 0, c: "Lens Basics", e: "CR-39 has an index of 1.49." },
+  { q: "Which lens for driving?", o: ["Polarized", "AR coated", "Blue filter", "Progressive"], a: 0, c: "Lens Basics", e: "Polarized lenses reduce glare for driving." },
+  { q: "What is the lens formula?", o: ["F = 1/f", "F = f/1", "F = f + 1", "F = f - 1"], a: 0, c: "Lens Basics", e: "Lens power (F) = 1 / focal length (f in meters)." },
+  { q: "Which coating reduces scratches?", o: ["Scratch-resistant", "UV", "Anti-reflective", "Tint"], a: 0, c: "Lens Basics", e: "Scratch-resistant coating protects against scratches." },
+  { q: "What is the focal length of a +2.00D lens?", o: ["0.5m", "0.25m", "1m", "2m"], a: 0, c: "Lens Basics", e: "Focal length = 1/D = 1/2 = 0.5m." },
+  { q: "Which lens reduces eye strain?", o: ["Photochromic", "Polarized", "Anti-reflective", "Tinted"], a: 2, c: "Lens Basics", e: "Anti-reflective coating reduces eye strain." },
+  { q: "What is the index of refraction for polycarbonate?", o: ["1.58", "1.49", "1.66", "1.74"], a: 0, c: "Lens Basics", e: "Polycarbonate has an index of 1.58." },
+  { q: "Which lens reduces reflections?", o: ["Anti-reflective", "Scratch-resistant", "UV", "Mirror"], a: 0, c: "Lens Basics", e: "Anti-reflective coating reduces reflections." },
+  { q: "What is the Abbe number for glass?", o: ["59", "30", "42", "66"], a: 0, c: "Lens Basics", e: "Glass has an Abbe number of 59." },
+  { q: "Which lens for astigmatism?", o: ["Spherical", "Cylindrical", "Bifocal", "Prism"], a: 1, c: "Lens Basics", e: "Cylindrical lenses correct astigmatism." },
+  { q: "What is the focal length of a +5.00D lens?", o: ["0.2m", "0.5m", "1m", "5m"], a: 0, c: "Lens Basics", e: "Focal length = 1/D = 1/5 = 0.2m." },
+  { q: "Which material for thin lenses?", o: ["High-index", "Glass", "CR-39", "Polycarbonate"], a: 0, c: "Lens Basics", e: "High-index material for thinner lenses." },
+  { q: "What is lens transmittance?", o: ["Light passing", "Light blocking", "Thickness", "Curvature"], a: 0, c: "Lens Basics", e: "Transmittance is the percentage of light passing through." },
+  { q: "Which lens for sports?", o: ["Polycarbonate", "Glass", "CR-39", "High-index"], a: 0, c: "Lens Basics", e: "Polycarbonate is impact-resistant for sports." },
+  { q: "What is the power of a lens with 0.33m focal length?", o: ["+3.00D", "+2.00D", "+0.33D", "-3.00D"], a: 0, c: "Lens Basics", e: "Power = 1/f = 1/0.33 ≈ +3.00D." },
+  { q: "Which coating for sun protection?", o: ["Tint", "AR", "Scratch", "UV"], a: 0, c: "Lens Basics", e: "Tint coating reduces light intensity." },
+  { q: "What is the Abbe number for CR-39?", o: ["58", "30", "42", "66"], a: 0, c: "Lens Basics", e: "CR-39 has an Abbe number of 58." },
+  { q: "Which lens for presbyopia?", o: ["Progressive", "Single vision", "Tinted", "Polarized"], a: 0, c: "Lens Basics", e: "Progressive lenses correct presbyopia." },
+
+  // Frame Fitting (30 questions)
+  { q: "Which frame material is known for being hypoallergenic?", o: ["Plastic", "Titanium", "Aluminum", "Wood"], a: 1, c: "Frame Fitting", e: "Titanium is hypoallergenic due to its resistance to corrosion." },
+  { q: "What angle should temple tips be adjusted to?", o: ["90°", "95°-100°", "85°", "110°"], a: 1, c: "Frame Fitting", e: "95°-100° ensures a secure fit behind the ear." },
+  { q: "Which frame feature aids in sports?", o: ["Spring hinges", "Wraparound design", "Rhinestones", "Thick rims"], a: 1, c: "Frame Fitting", e: "Wraparound design provides protection and stability." },
+  { q: "How to fix a twisted frame?", o: ["Heat and bend", "Replace", "Tighten screws", "Polish"], a: 0, c: "Frame Fitting", e: "Heat and bend to realign." },
+  { q: "Which frame style suits a round face?", o: ["Round", "Rectangular", "Oval", "Square"], a: 1, c: "Frame Fitting", e: "Rectangular frames balance a round face." },
+  { q: "How to adjust for high cheekbones?", o: ["Increase tilt", "Decrease tilt", "Widen bridge", "Shorten temples"], a: 0, c: "Frame Fitting", e: "Increasing pantoscopic tilt accommodates high cheekbones." },
+  { q: "Which frame for square face?", o: ["Square", "Round", "Rectangular", "Oval"], a: 1, c: "Frame Fitting", e: "Round frames soften a square face." },
+  { q: "What frame part supports the nose?", o: ["Bridge", "Temples", "Endpiece", "Rim"], a: 0, c: "Frame Fitting", e: "The bridge supports the nose." },
+  { q: "Which frame for oval face?", o: ["Any", "Round", "Square", "Rectangular"], a: 0, c: "Frame Fitting", e: "Oval faces suit any frame style." },
+  { q: "How to fix a loose hinge?", o: ["Tighten screw", "Replace frame", "Bend temple", "Clean"], a: 0, c: "Frame Fitting", e: "Tighten the hinge screw." },
+  { q: "Which frame for diamond face?", o: ["Cat-eye", "Round", "Square", "Rectangular"], a: 0, c: "Frame Fitting", e: "Cat-eye frames balance a diamond face." },
+  { q: "What to do for a tight bridge?", o: ["Widen bridge", "Tighten screw", "Lower pads", "Increase PD"], a: 0, c: "Frame Fitting", e: "Widen the bridge for comfort." },
+  { q: "Which frame feature aids in comfort?", o: ["Spring hinges", "Rigid hinges", "Thick rims", "Heavy material"], a: 0, c: "Frame Fitting", e: "Spring hinges provide flexibility for comfort." },
+  { q: "How to adjust for asymmetric ears?", o: ["Bend one temple", "Replace bridge", "Shorten lenses", "Add prism"], a: 0, c: "Frame Fitting", e: "Bend one temple to balance the frame." },
+  { q: "Which frame for heart face?", o: ["Round", "Square", "Oval", "Rectangular"], a: 0, c: "Frame Fitting", e: "Round frames balance a heart face." },
+  { q: "How to fix a twisted nose pad?", o: ["Replace pad arm", "Tighten screw", "Bend temple", "Clean"], a: 0, c: "Frame Fitting", e: "Replace the pad arm if twisted." },
+  { q: "Which frame for triangle face?", o: ["Cat-eye", "Round", "Square", "Rectangular"], a: 0, c: "Frame Fitting", e: "Cat-eye frames balance a triangle face." },
+  { q: "What is the role of nose pads?", o: ["Support frame", "Adjust tilt", "Reduce weight", "Increase PD"], a: 0, c: "Frame Fitting", e: "Nose pads support the frame on the nose." },
+  { q: "How to measure frame size?", o: ["A-B-DBL", "PD", "Lens thickness", "Temple length"], a: 0, c: "Frame Fitting", e: "Frame size is measured as A-B-DBL." },
+  { q: "Which frame for low bridge?", o: ["Saddle bridge", "Keyhole bridge", "Adjustable pads", "Metal bridge"], a: 2, c: "Frame Fitting", e: "Adjustable pads fit low bridges." },
+  { q: "How to adjust temple length?", o: ["Bend tip", "Replace temple", "Heat frame", "Tighten screw"], a: 0, c: "Frame Fitting", e: "Bend the temple tip for length adjustment." },
+  { q: "Which frame for wide face?", o: ["Wide bridge", "Narrow bridge", "Small lenses", "Thin rims"], a: 0, c: "Frame Fitting", e: "Wide bridge accommodates a wide face." },
+  { q: "What is the role of endpieces?", o: ["Connect temples", "Support nose", "Hold lenses", "Adjust PD"], a: 0, c: "Frame Fitting", e: "Endpieces connect temples to the frame front." },
+  { q: "How to fix a loose temple?", o: ["Tighten hinge", "Replace", "Bend bridge", "Clean"], a: 0, c: "Frame Fitting", e: "Tighten the hinge screw." },
+  { q: "Which frame for narrow face?", o: ["Narrow bridge", "Wide bridge", "Large lenses", "Thick rims"], a: 0, c: "Frame Fitting", e: "Narrow bridge suits a narrow face." },
+  { q: "What is the standard temple length?", o: ["135-145mm", "100-110mm", "150-160mm", "120-130mm"], a: 0, c: "Frame Fitting", e: "Standard temple length is 135-145mm." },
+  { q: "How to measure bridge size?", o: ["DBL", "PD", "Lens thickness", "Temple length"], a: 0, c: "Frame Fitting", e: "Bridge size is measured as DBL (distance between lenses)." },
+  { q: "Which frame for high prescription?", o: ["Small frames", "Large frames", "Rimless", "Semi-rimless"], a: 0, c: "Frame Fitting", e: "Small frames minimize lens thickness." },
+  { q: "What is the role of hinges?", o: ["Connect temples", "Support nose", "Hold lenses", "Adjust PD"], a: 0, c: "Frame Fitting", e: "Hinges connect temples to the frame." },
+  { q: "How to adjust for high nose bridge?", o: ["Lower pads", "Widen bridge", "Increase tilt", "Shorten temples"], a: 0, c: "Frame Fitting", e: "Lower pads for high nose bridges." },
+  { q: "Which frame for low nose bridge?", o: ["Higher pads", "Lower pads", "Widen bridge", "Shorten temples"], a: 0, c: "Frame Fitting", e: "Higher pads for low nose bridges." },
+
+  // Patient Care (25 questions)
+  { q: "What to do if a patient has a red eye?", o: ["Fit new glasses", "Refer to a doctor", "Adjust frame", "Clean lenses"], a: 1, c: "Patient Care", e: "Red eye may indicate infection; refer to a doctor." },
+  { q: "What to do if a patient complains of discomfort?", o: ["Ignore it", "Adjust the frame", "Replace lenses", "Refer to optometrist"], a: 1, c: "Patient Care", e: "Adjusting the frame can resolve discomfort; refer if needed." },
+  { q: "What to do if a patient has vision blur?", o: ["Check prescription", "Clean frame", "Replace nose pads", "Shorten temples"], a: 0, c: "Patient Care", e: "Verify the prescription for blur issues." },
+  { q: "What to do for lens smudges?", o: ["Clean with microfiber", "Polish", "Replace", "Tint"], a: 0, c: "Patient Care", e: "Clean with microfiber cloth." },
+  { q: "What to do for lens discoloration?", o: ["Replace", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Replace discolored lenses." },
+  { q: "What to do for lens scratches?", o: ["Replace", "Polish", "Ignore", "Tint"], a: 0, c: "Patient Care", e: "Replace scratched lenses for clear vision." },
+  { q: "What to do for frame slipping?", o: ["Tighten temples", "Widen bridge", "Lower pads", "Increase weight"], a: 0, c: "Patient Care", e: "Tighten temples to prevent slipping." },
+  { q: "What to do for eye strain?", o: ["Check prescription", "Add tint", "Replace frame", "Clean lenses"], a: 0, c: "Patient Care", e: "Check prescription for strain issues." },
+  { q: "What to do for headaches from glasses?", o: ["Check fit", "Ignore", "Sell aspirin", "Clean frame"], a: 0, c: "Patient Care", e: "Check fit and prescription for headaches." },
+  { q: "What to do for allergic reaction to frame?", o: ["Switch material", "Apply lotion", "Ignore", "Tighten screws"], a: 0, c: "Patient Care", e: "Switch to hypoallergenic material." },
+  { q: "What to do for lens bubbles?", o: ["Replace", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Bubbles indicate defect; replace." },
+  { q: "What to do for lens haze?", o: ["Clean", "Polish", "Replace", "Tint"], a: 0, c: "Patient Care", e: "Clean to remove haze." },
+  { q: "What to do for lens pitting?", o: ["Replace", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Pitting requires lens replacement." },
+  { q: "What to do for lens streaks?", o: ["Clean with cloth", "Polish", "Replace", "Tint"], a: 0, c: "Patient Care", e: "Clean with proper cloth to remove streaks." },
+  { q: "What to do for frame corrosion?", o: ["Replace frame", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Replace corroded frames." },
+  { q: "What to do for frame fading?", o: ["Replace frame", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Replace faded frames." },
+  { q: "What to do for frame cracking?", o: ["Replace frame", "Glue", "Clean", "Polish"], a: 0, c: "Patient Care", e: "Replace cracked frames for safety." },
+  { q: "What to do for nose pad irritation?", o: ["Replace pads", "Tighten screws", "Bend temple", "Clean"], a: 0, c: "Patient Care", e: "Replace irritating nose pads." },
+  { q: "What to do for temple pressure?", o: ["Loosen temples", "Tighten bridge", "Lower pads", "Increase PD"], a: 0, c: "Patient Care", e: "Loosen temples to relieve pressure." },
+  { q: "What to do for ear soreness?", o: ["Adjust temple tips", "Replace frame", "Tighten screws", "Clean"], a: 0, c: "Patient Care", e: "Adjust temple tips for comfort." },
+  { q: "What to do for bridge marks?", o: ["Widen bridge", "Tighten temples", "Lower pads", "Increase PD"], a: 0, c: "Patient Care", e: "Widen the bridge to reduce marks." },
+  { q: "What to do for lens popping out?", o: ["Reinsert and adjust", "Replace frame", "Tighten screws", "Clean"], a: 0, c: "Patient Care", e: "Reinsert and adjust the lens." },
+  { q: "What to do for frame slipping?", o: ["Tighten temples", "Widen bridge", "Lower pads", "Increase weight"], a: 0, c: "Patient Care", e: "Tighten temples to prevent slipping." },
+  { q: "What to do for lens fogging?", o: ["Add anti-fog coating", "Polish", "Replace", "Clean"], a: 0, c: "Patient Care", e: "Add anti-fog coating to prevent fogging." },
+  { q: "What to do for vision distortion?", o: ["Check prescription", "Clean frame", "Replace nose pads", "Shorten temples"], a: 0, c: "Patient Care", e: "Check prescription for distortion issues." },
+
+  // Ophthalmic Optics (25 questions)
+  { q: "What aberration causes starburst effects?", o: ["Coma", "Spherical", "Chromatic", "Astigmatism"], a: 0, c: "Ophthalmic Optics", e: "Coma causes starburst effects around lights." },
+  { q: "What causes chromatic aberration?", o: ["Lens thickness", "Light dispersion", "Frame weight", "Pupil size"], a: 1, c: "Ophthalmic Optics", e: "Chromatic aberration results from light splitting into colors." },
+  { q: "What is the Prentice Rule formula?", o: ["P = h × F", "P = F / h", "P = h + F", "P = F - h"], a: 0, c: "Ophthalmic Optics", e: "Prism power (P) = height (h) × lens power (F)." },
+  { q: "What is distortion in lenses?", o: ["Barrel distortion", "Pincushion distortion", "Both", "Neither"], a: 2, c: "Ophthalmic Optics", e: "High-power lenses can cause barrel or pincushion distortion." },
+  { q: "What is the lens clock used for?", o: ["Measure base curve", "Time tests", "Check thickness", "Adjust PD"], a: 0, c: "Ophthalmic Optics", e: "The lens clock measures lens base curve." },
+  { q: "What is lens asphericity?", o: ["Curvature variation", "Color variation", "Thickness variation", "Power variation"], a: 0, c: "Ophthalmic Optics", e: "Aspheric lenses vary curvature to reduce distortion." },
+  { q: "What is the index of refraction for polycarbonate?", o: ["1.58", "1.49", "1.66", "1.74"], a: 0, c: "Ophthalmic Optics", e: "Polycarbonate has an index of 1.58." },
+  { q: "What is the lens formula?", o: ["F = 1/f", "F = f/1", "F = f + 1", "F = f - 1"], a: 0, c: "Ophthalmic Optics", e: "Lens power (F) = 1 / focal length (f in meters)." },
+  { q: "What is lens polarization?", o: ["Reduce glare", "Increase power", "Block UV", "Add color"], a: 0, c: "Ophthalmic Optics", e: "Polarization reduces glare from surfaces." },
+  { q: "What is lens transmittance?", o: ["Light passing", "Light blocking", "Thickness", "Curvature"], a: 0, c: "Ophthalmic Optics", e: "Transmittance is the percentage of light passing through." },
+  { q: "What is the Abbe value for glass?", o: ["59", "30", "42", "66"], a: 0, c: "Ophthalmic Optics", e: "Glass has an Abbe value of 59." },
+  { q: "What is lens birefringence?", o: ["Stress pattern", "Color pattern", "Thickness pattern", "Power pattern"], a: 0, c: "Ophthalmic Optics", e: "Birefringence shows stress in lenses." },
+  { q: "What is lens vergence?", o: ["Light convergence/divergence", "Thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "Vergence is the convergence or divergence of light." },
+  { q: "What is the lens meridian?", o: ["Axis of power", "Thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "The meridian is the axis of lens power." },
+  { q: "What is lens focal point?", o: ["Light convergence", "Thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "The focal point is where light converges." },
+  { q: "What is lens reflectance?", o: ["Light bouncing off", "Light passing through", "Thickness", "Curvature"], a: 0, c: "Ophthalmic Optics", e: "Reflectance is light bouncing off the lens." },
+  { q: "What is lens absorptance?", o: ["Light absorbed", "Light reflected", "Thickness", "Curvature"], a: 0, c: "Ophthalmic Optics", e: "Absorptance is light absorbed by the lens." },
+  { q: "What is the Abbe number for CR-39?", o: ["58", "30", "42", "66"], a: 0, c: "Ophthalmic Optics", e: "CR-39 has an Abbe number of 58." },
+  { q: "What is the Abbe number for polycarbonate?", o: ["30", "58", "42", "66"], a: 0, c: "Ophthalmic Optics", e: "Polycarbonate has an Abbe number of 30." },
+  { q: "What is the index of refraction for glass?", o: ["1.52", "1.49", "1.58", "1.66"], a: 0, c: "Ophthalmic Optics", e: "Glass has an index of 1.52." },
+  { q: "What is the index of refraction for high-index?", o: ["1.66-1.74", "1.49", "1.58", "1.52"], a: 0, c: "Ophthalmic Optics", e: "High-index lenses range from 1.66 to 1.74." },
+  { q: "What is lens sagitta?", o: ["Curve depth", "Thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "Sagitta is the curve depth." },
+  { q: "What is the lens prism thinning?", o: ["Reduce thickness", "Increase power", "Block UV", "Add color"], a: 0, c: "Ophthalmic Optics", e: "Prism thinning reduces thickness." },
+  { q: "What is the lens edge thickness?", o: ["Peripheral thickness", "Center thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "Edge thickness is at the periphery." },
+  { q: "What is the lens center thickness?", o: ["Central thickness", "Edge thickness", "Color", "Material"], a: 0, c: "Ophthalmic Optics", e: "Center thickness is at the center." },
+
+  // Instrumentation (25 questions)
+  { q: "What is the primary function of a lensometer?", o: ["Measure eye pressure", "Verify lens power", "Adjust frames", "Test color vision"], a: 1, c: "Instrumentation", e: "A lensometer measures lens prescription power." },
+  { q: "Which instrument measures pupillary distance?", o: ["Lensometer", "Pupillometer", "Keratometer", "Tonometer"], a: 1, c: "Instrumentation", e: "A pupillometer measures PD for lens fitting." },
+  { q: "Which tool bends temples?", o: ["Screwdriver", "Pliers", "Heat gun", "Lens clock"], a: 2, c: "Instrumentation", e: "A heat gun softens frames for adjustments." },
+  { q: "How often should a lensometer be calibrated?", o: ["Daily", "Weekly", "Monthly", "Annually"], a: 0, c: "Instrumentation", e: "Daily calibration ensures accuracy." },
+  { q: "Which instrument measures corneal curvature?", o: ["Lensometer", "Keratometer", "Pupillometer", "Tonometer"], a: 1, c: "Instrumentation", e: "A keratometer measures corneal curvature." },
+  { q: "How to clean a lensometer?", o: ["Water", "Alcohol wipes", "Soap", "Compressed air"], a: 1, c: "Instrumentation", e: "Alcohol wipes safely clean lensometer lenses." },
+  { q: "How to test lensometer accuracy?", o: ["Use known lens", "Check frame", "Measure PD", "Adjust screws"], a: 0, c: "Instrumentation", e: "A known lens verifies lensometer accuracy." },
+  { q: "How to use a frame warmer?", o: ["Heat metal frames", "Heat plastic frames", "Cool lenses", "Measure PD"], a: 1, c: "Instrumentation", e: "A frame warmer heats plastic frames for adjustments." },
+  { q: "How to calibrate a pupillometer?", o: ["Use known PD", "Check frame", "Measure lens", "Adjust screws"], a: 0, c: "Instrumentation", e: "Use a known PD for calibration." },
+  { q: "What is a lens clock used for?", o: ["Measure base curve", "Time tests", "Check thickness", "Adjust PD"], a: 0, c: "Instrumentation", e: "A lens clock measures lens base curve." },
+  { q: "How to measure lens thickness?", o: ["Calipers", "Lens clock", "Pupillometer", "Tonometer"], a: 0, c: "Instrumentation", e: "Calipers measure lens edge thickness." },
+  { q: "How to use a lens tint unit?", o: ["Color lenses", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens tint unit colors lenses." },
+  { q: "How to use a lens blocker?", o: ["Attach lens block", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens blocker attaches blocks for edging." },
+  { q: "How to use a lens polisher?", o: ["Polish edges", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens polisher polishes edges." },
+  { q: "How to use a lens drill?", o: ["Drill for rimless", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens drill drills holes for rimless frames." },
+  { q: "How to use a lens inserter?", o: ["Insert lenses", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens inserter inserts lenses into frames." },
+  { q: "How to use a lens surfacer?", o: ["Surface lenses", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens surfacer surfaces lenses." },
+  { q: "How to use a lens edger?", o: ["Cut lens shape", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens edger cuts lenses to frame shape." },
+  { q: "How to use a lens groover?", o: ["Groove for nylon", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A lens groover grooves edges for nylon frames." },
+  { q: "How to use a frame heater?", o: ["Heat plastic", "Heat metal", "Cool lenses", "Measure PD"], a: 0, c: "Instrumentation", e: "A frame heater heats plastic frames for bending." },
+  { q: "What is a distometer used for?", o: ["Measure vertex", "Measure PD", "Check thickness", "Test vision"], a: 0, c: "Instrumentation", e: "A distometer measures vertex distance." },
+  { q: "What is a tonometer used for?", o: ["Measure eye pressure", "Measure PD", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A tonometer measures intraocular pressure." },
+  { q: "What is a keratometer used for?", o: ["Measure corneal curvature", "Measure PD", "Check thickness", "Test vision"], a: 0, c: "Instrumentation", e: "A keratometer measures corneal curvature." },
+  { q: "What is a lens clock used for?", o: ["Measure base curve", "Time tests", "Check thickness", "Adjust PD"], a: 0, c: "Instrumentation", e: "A lens clock measures lens base curve." },
+  { q: "What is a pupillometer used for?", o: ["Measure PD", "Measure eye pressure", "Check curve", "Test vision"], a: 0, c: "Instrumentation", e: "A pupillometer measures pupillary distance." },
+
+  // Anatomy and Physiology (25 questions)
+  { q: "What part of the eye refracts light to the retina?", o: ["Cornea", "Iris", "Lens", "Sclera"], a: 2, c: "Anatomy and Physiology", e: "The lens, along with the cornea, refracts light to the retina." },
+  { q: "What is the retina's function?", o: ["Protect the eye", "Detect light and color", "Produce tears", "Regulate pupil size"], a: 1, c: "Anatomy and Physiology", e: "The retina contains photoreceptors that detect light and send visual signals to the brain." },
+  { q: "Which muscle controls pupil size?", o: ["Ciliary muscle", "Iris sphincter", "Rectus muscle", "Oblique muscle"], a: 1, c: "Anatomy and Physiology", e: "The iris sphincter muscle constricts the pupil in bright light." },
+  { q: "What nerve transmits visual signals?", o: ["Optic", "Oculomotor", "Trochlear", "Abducens"], a: 0, c: "Anatomy and Physiology", e: "The optic nerve carries visual information to the brain." },
+  { q: "What is the function of the vitreous humor?", o: ["Maintain shape", "Produce tears", "Focus light", "Detect color"], a: 0, c: "Anatomy and Physiology", e: "The vitreous humor maintains the eye's shape and supports the retina." },
+  { q: "What protects the cornea?", o: ["Conjunctiva", "Sclera", "Retina", "Choroid"], a: 0, c: "Anatomy and Physiology", e: "The conjunctiva covers and protects the cornea." },
+  { q: "What supplies aqueous humor?", o: ["Ciliary body", "Cornea", "Retina", "Iris"], a: 0, c: "Anatomy and Physiology", e: "The ciliary body produces aqueous humor." },
+  { q: "What muscle moves the eye upward?", o: ["Superior rectus", "Inferior oblique", "Lateral rectus", "Medial rectus"], a: 0, c: "Anatomy and Physiology", e: "The superior rectus elevates the eye." },
+  { q: "What is the retina's layers?", o: ["10 layers", "5 layers", "3 layers", "1 layer"], a: 0, c: "Anatomy and Physiology", e: "The retina has 10 layers." },
+  { q: "What is the role of the optic nerve?", o: ["Transmit visual signals", "Focus light", "Produce tears", "Protect eye"], a: 0, c: "Anatomy and Physiology", e: "The optic nerve transmits visual signals to the brain." },
+  { q: "What is the iris's role?", o: ["Control light entry", "Focus light", "Detect light", "Protect retina"], a: 0, c: "Anatomy and Physiology", e: "The iris controls light entry through the pupil." },
+  { q: "What is the sclera's role?", o: ["Protect the eye", "Focus light", "Produce color", "Detect light"], a: 0, c: "Anatomy and Physiology", e: "The sclera protects and maintains eye shape." },
+  { q: "What is the choroid's function?", o: ["Nourish retina", "Protect cornea", "Focus light", "Produce humor"], a: 0, c: "Anatomy and Physiology", e: "The choroid nourishes the retina." },
+  { q: "What is the conjunctiva's role?", o: ["Protect and lubricate", "Focus light", "Detect color", "Produce humor"], a: 0, c: "Anatomy and Physiology", e: "The conjunctiva protects and lubricates the eye." },
+  { q: "What is the zonule's role?", o: ["Support lens", "Focus light", "Detect color", "Produce tears"], a: 0, c: "Anatomy and Physiology", e: "Zonules support the lens." },
+  { q: "What is the ciliary muscle's role?", o: ["Accommodation", "Pupil constriction", "Eye movement", "Tear production"], a: 0, c: "Anatomy and Physiology", e: "The ciliary muscle enables accommodation." },
+  { q: "What is the macula's role?", o: ["Central vision", "Peripheral vision", "Color detection", "Light blocking"], a: 0, c: "Anatomy and Physiology", e: "The macula provides sharp central vision." },
+  { q: "What is the fovea's role?", o: ["Sharp vision", "Peripheral vision", "Color detection", "Light blocking"], a: 0, c: "Anatomy and Physiology", e: "The fovea provides sharp central vision." },
+  { q: "What is the optic disc?", o: ["Blind spot", "Focus point", "Color spot", "Light spot"], a: 0, c: "Anatomy and Physiology", e: "The optic disc is the blind spot where the optic nerve exits." },
+  { q: "What is the limbus?", o: ["Cornea-sclera junction", "Lens edge", "Retina edge", "Iris edge"], a: 0, c: "Anatomy and Physiology", e: "The limbus is the cornea-sclera junction." },
+  { q: "What is the trabecular meshwork?", o: ["Drain fluid", "Focus light", "Detect color", "Protect eye"], a: 0, c: "Anatomy and Physiology", e: "The trabecular meshwork drains aqueous humor." },
+  { q: "What is the eyelid's function?", o: ["Protect eye", "Focus light", "Detect color", "Produce humor"], a: 0, c: "Anatomy and Physiology", e: "The eyelid protects the eye." },
+  { q: "What is the lacrimal system's role?", o: ["Produce and drain tears", "Focus light", "Detect light", "Protect retina"], a: 0, c: "Anatomy and Physiology", e: "The lacrimal system produces and drains tears." },
+  { q: "What is the uvea's role?", o: ["Nourish eye", "Protect cornea", "Focus light", "Detect light"], a: 0, c: "Anatomy and Physiology", e: "The uveal tract nourishes the eye." },
+  { q: "What is the orbit's role?", o: ["Protect eye", "Focus light", "Detect color", "Produce tears"], a: 0, c: "Anatomy and Physiology", e: "The orbit protects the eye." },
+
+  // Ocular Pathology (25 questions)
+  { q: "Which condition involves lens clouding?", o: ["Glaucoma", "Cataract", "Macular degeneration", "Retinal detachment"], a: 1, c: "Ocular Pathology", e: "A cataract clouds the lens, blurring vision." },
+  { q: "What is a glaucoma symptom?", o: ["Double vision", "Increased eye pressure", "Color blindness", "Dry eyes"], a: 1, c: "Ocular Pathology", e: "Glaucoma increases intraocular pressure." },
+  { q: "Which condition causes tunnel vision?", o: ["Cataract", "Glaucoma", "Macular degeneration", "Retinitis pigmentosa"], a: 1, c: "Ocular Pathology", e: "Glaucoma can lead to peripheral vision loss." },
+  { q: "Which pathology causes central vision loss?", o: ["Glaucoma", "Macular degeneration", "Cataract", "Conjunctivitis"], a: 1, c: "Ocular Pathology", e: "Macular degeneration affects central vision." },
+  { q: "Which condition causes floaters?", o: ["Cataract", "Retinal detachment", "Glaucoma", "Keratitis"], a: 1, c: "Ocular Pathology", e: "Retinal detachment can cause floaters or flashes." },
+  { q: "Which condition causes eye redness?", o: ["Conjunctivitis", "Cataract", "Presbyopia", "Hyperopia"], a: 0, c: "Ocular Pathology", e: "Conjunctivitis causes eye redness and inflammation." },
+  { q: "Which condition causes dry eyes?", o: ["Sjogren's syndrome", "Cataract", "Glaucoma", "Astigmatism"], a: 0, c: "Ocular Pathology", e: "Sjogren's syndrome reduces tear production." },
+  { q: "Which condition causes night blindness?", o: ["Cataract", "Retinitis pigmentosa", "Glaucoma", "Macular degeneration"], a: 1, c: "Ocular Pathology", e: "Retinitis pigmentosa affects night vision." },
+  { q: "Which condition causes distorted vision?", o: ["Keratoconus", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Keratoconus distorts the cornea." },
+  { q: "Which condition causes vision halos?", o: ["Cataract", "Glaucoma", "Macular degeneration", "Retinitis pigmentosa"], a: 0, c: "Ocular Pathology", e: "Cataracts cause halos around lights." },
+  { q: "Which condition causes eye discharge?", o: ["Bacterial conjunctivitis", "Cataract", "Glaucoma", "Presbyopia"], a: 0, c: "Ocular Pathology", e: "Bacterial conjunctivitis causes discharge." },
+  { q: "Which condition causes light sensitivity?", o: ["Uveitis", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Uveitis causes light sensitivity." },
+  { q: "Which condition causes eye pain?", o: ["Uveitis", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Uveitis causes eye pain and inflammation." },
+  { q: "Which condition causes eye bulging?", o: ["Graves' disease", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Graves' disease causes eye bulging." },
+  { q: "Which condition causes vision spots?", o: ["Floaters", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Floaters cause spots in vision." },
+  { q: "Which condition causes eye itching?", o: ["Allergic conjunctivitis", "Cataract", "Glaucoma", "Presbyopia"], a: 0, c: "Ocular Pathology", e: "Allergic conjunctivitis causes itching and redness." },
+  { q: "Which condition causes blurred near vision?", o: ["Presbyopia", "Myopia", "Hyperopia", "Astigmatism"], a: 0, c: "Ocular Pathology", e: "Presbyopia affects near focusing with age." },
+  { q: "Which condition causes blurred distance vision?", o: ["Myopia", "Hyperopia", "Presbyopia", "Astigmatism"], a: 0, c: "Ocular Pathology", e: "Myopia blurs distance vision." },
+  { q: "Which condition causes double vision?", o: ["Strabismus", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Strabismus causes double vision." },
+  { q: "Which condition causes color vision loss?", o: ["Color blindness", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Color blindness affects color perception." },
+  { q: "Which condition causes eye swelling?", o: ["Orbital cellulitis", "Cataract", "Glaucoma", "Astigmatism"], a: 0, c: "Ocular Pathology", e: "Orbital cellulitis causes eye swelling." },
+  { q: "Which condition causes eye tumors?", o: ["Ocular melanoma", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Ocular melanoma is eye cancer." },
+  { q: "Which condition causes eye twitching?", o: ["Blepharospasm", "Cataract", "Glaucoma", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Blepharospasm causes involuntary twitching." },
+  { q: "Which condition causes vision halos?", o: ["Cataract", "Glaucoma", "Macular degeneration", "Retinitis pigmentosa"], a: 0, c: "Ocular Pathology", e: "Cataracts cause halos around lights." },
+  { q: "Which condition causes peripheral vision loss?", o: ["Glaucoma", "Cataract", "Macular degeneration", "Conjunctivitis"], a: 0, c: "Ocular Pathology", e: "Glaucoma causes peripheral vision loss." },
+
+  // Legislation and Regulation (25 questions)
+  { q: "What law requires patient privacy?", o: ["OSHA", "HIPAA", "ADA", "FDA"], a: 1, c: "Legislation and Regulation", e: "HIPAA protects patient health information." },
+  { q: "Who regulates eyeglass dispensing?", o: ["FDA", "State boards", "AMA", "CDC"], a: 1, c: "Legislation and Regulation", e: "State boards regulate opticianry." },
+  { q: "What is the minimum age to dispense glasses without supervision?", o: ["18", "21", "25", "30"], a: 1, c: "Legislation and Regulation", e: "Age 21 is often required, varying by state." },
+  { q: "What is the FDA's role in opticianry?", o: ["Regulate lens safety", "License opticians", "Set prices", "Train opticians"], a: 0, c: "Legislation and Regulation", e: "The FDA regulates lens and frame safety standards." },
+  { q: "What is OSHA's role in opticianry?", o: ["Workplace safety", "Lens pricing", "Exam certification", "Frame design"], a: 0, c: "Legislation and Regulation", e: "OSHA enforces workplace safety standards." },
+  { q: "What is the ADA's role in opticianry?", o: ["Accessibility", "Pricing", "Certification", "Safety"], a: 0, c: "Legislation and Regulation", e: "The ADA ensures accessibility for disabled patients." },
+  { q: "What is the Eyeglass Rule?", o: ["Provide prescriptions", "Set prices", "License opticians", "Design frames"], a: 0, c: "Legislation and Regulation", e: "The Eyeglass Rule requires providing prescriptions to patients." },
+  { q: "What is the Contact Lens Rule?", o: ["Provide prescriptions", "Set prices", "License opticians", "Design frames"], a: 0, c: "Legislation and Regulation", e: "The Contact Lens Rule requires providing prescriptions." },
+  { q: "What is ANSI Z80.1 for?", o: ["Lens tolerances", "Frame tolerances", "Exam certification", "Safety goggles"], a: 0, c: "Legislation and Regulation", e: "ANSI Z80.1 sets lens tolerance standards." },
+  { q: "What is ANSI Z87.1 for?", o: ["Safety eyewear", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "ANSI Z87.1 is for safety eyewear standards." },
+  { q: "What is the HIPAA Privacy Rule?", o: ["Protect patient info", "Set prices", "License opticians", "Design frames"], a: 0, c: "Legislation and Regulation", e: "The HIPAA Privacy Rule protects patient health information." },
+  { q: "What is the HIPAA Security Rule?", o: ["Protect electronic data", "Set prices", "License opticians", "Design frames"], a: 0, c: "Legislation and Regulation", e: "The HIPAA Security Rule protects electronic health information." },
+  { q: "What is the purpose of the Drop Ball Test?", o: ["Impact resistance", "Power measurement", "Color testing", "Thickness check"], a: 0, c: "Legislation and Regulation", e: "The Drop Ball Test ensures lens impact resistance." },
+  { q: "What is the Z80.3 standard for?", o: ["Sunglasses", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "Z80.3 is for non-prescription sunglasses standards." },
+  { q: "What is the Z87.2 for?", o: ["Prescription safety", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "Z87.2 is for prescription safety eyewear." },
+  { q: "What is the Fairness to Contact Lens Consumers Act?", o: ["Prescription release", "Lens pricing", "Exam certification", "Frame design"], a: 0, c: "Legislation and Regulation", e: "It requires releasing contact lens prescriptions." },
+  { q: "What is the Z87.1 for?", o: ["Safety eyewear", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "Z87.1 is for occupational safety eyewear." },
+  { q: "What is the Z80.1 for?", o: ["Lens tolerances", "Frame tolerances", "Exam certification", "Safety goggles"], a: 0, c: "Legislation and Regulation", e: "Z80.1 is for lens tolerances." },
+  { q: "What is the ADA for?", o: ["Disability access", "Pricing", "Certification", "Safety"], a: 0, c: "Legislation and Regulation", e: "The ADA ensures disability access." },
+  { q: "What is the FTC for?", o: ["Eyeglass Rule", "Lens pricing", "Exam certification", "Frame design"], a: 0, c: "Legislation and Regulation", e: "The FTC enforces the Eyeglass Rule." },
+  { q: "What is the HIPAA for?", o: ["Privacy", "Pricing", "Certification", "Safety"], a: 0, c: "Legislation and Regulation", e: "HIPAA protects patient privacy." },
+  { q: "What is OSHA for?", o: ["Safety", "Pricing", "Certification", "Design"], a: 0, c: "Legislation and Regulation", e: "OSHA enforces workplace safety." },
+  { q: "What is the Z87.1 standard?", o: ["Safety eyewear", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "Z87.1 is for safety eyewear standards." },
+  { q: "What is the Z80.3 for?", o: ["Sunglasses", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "Z80.3 is for non-prescription sunglasses." },
+  { q: "What is the Z80.1 for?", o: ["Lens tolerances", "Frame tolerances", "Exam certification", "Safety goggles"], a: 0, c: "Legislation and Regulation", e: "Z80.1 is for lens tolerances." },
+
+  // Other ABO Areas (45 questions)
+  { q: "What is the role of the optic nerve?", o: ["Transmit visual signals", "Focus light", "Produce tears", "Protect eye"], a: 0, c: "Other", e: "The optic nerve transmits visual signals to the brain." },
+  { q: "What is the purpose of the Contact Lens Rule?", o: ["Provide prescriptions", "Set prices", "License opticians", "Design frames"], a: 0, c: "Other", e: "The Contact Lens Rule requires providing prescriptions." },
+  { q: "What is the index of refraction for high-index?", o: ["1.66-1.74", "1.49", "1.58", "1.52"], a: 0, c: "Other", e: "High-index lenses range from 1.66 to 1.74." },
+  { q: "What is lens sagitta?", o: ["Curve depth", "Thickness", "Color", "Curvature"], a: 0, c: "Other", e: "Sagitta is the curve depth." },
+  { q: "What is the lens prism thinning?", o: ["Reduce thickness", "Increase power", "Block UV", "Add color"], a: 0, c: "Other", e: "Prism thinning reduces thickness." },
+  { q: "What is the lens edge thickness?", o: ["Peripheral thickness", "Center thickness", "Color", "Material"], a: 0, c: "Other", e: "Edge thickness is at the periphery." },
+  { q: "What is the lens center thickness?", o: ["Central thickness", "Edge thickness", "Color", "Material"], a: 0, c: "Other", e: "Center thickness is at the center." },
+  { q: "What is the role of the Eyeglass Rule?", o: ["Provide prescriptions", "Set prices", "License opticians", "Design frames"], a: 0, c: "Other", e: "The Eyeglass Rule requires providing prescriptions to patients." },
+  { q: "What is the Prentice Rule?", o: ["Prism = decentration (cm) x power (D)", "Power = prism x decentration", "Decentration = prism x power", "Prism = power / decentration"], a: 0, c: "Other", e: "Prentice Rule: Induced prism = decentration (cm) x lens power (D)." },
+  { q: "Calculate induced prism for +3.00D lens decentered 8mm up.", o: ["2.4Δ base down", "2.4Δ base up", "3Δ base down", "8Δ base up"], a: 0, c: "Other", e: "Prism = F x decentration (cm) = 3 x 0.8 = 2.4Δ base down." },
+  { q: "What is slab-off prism used for?", o: ["Correct bifocal imbalance", "Reduce weight", "Increase power", "Block UV"], a: 0, c: "Other", e: "Slab-off prism corrects vertical imbalance in bifocals." },
+  { q: "Which prism corrects esotropia?", o: ["Base in", "Base out", "Base up", "Base down"], a: 1, c: "Other", e: "Base out prism corrects esotropia (inward deviation)." },
+  { q: "What is the unit of prism power?", o: ["Diopters", "Prism diopters", "Millimeters", "Degrees"], a: 1, c: "Other", e: "Prism power is measured in prism diopters (Δ)." },
+  { q: "Calculate total prism for 2Δ base out OD and 2Δ base in OS.", o: ["0Δ", "4Δ base out", "4Δ base in", "2Δ base out"], a: 0, c: "Other", e: "Opposing bases cancel: 2 base out - 2 base in = 0Δ." },
+  { q: "What is Fresnel prism?", o: ["Temporary prism sticker", "Permanent lens prism", "Frame prism", "Contact prism"], a: 0, c: "Other", e: "Fresnel prism is a thin sticker for temporary prism correction." },
+  { q: "What symptom indicates prism thinning needed?", o: ["Edge thickness", "Blurred vision", "Headaches", "Dry eyes"], a: 0, c: "Other", e: "Prism thinning reduces edge thickness in high-power lenses." },
+  { q: "How to measure prism in a lensometer?", o: ["Decentration from OC", "Power reading", "Curve measurement", "Thickness"], a: 0, c: "Other", e: "Prism is measured as decentration from the optical center." },
+  { q: "What is the prism effect of tilt?", o: ["Induces prism", "Reduces power", "Increases thickness", "Blocks UV"], a: 0, c: "Other", e: "Tilt induces prism per Prentice Rule." },
+  { q: "Calculate prism for -5.00D lens decentered 5mm left.", o: ["2.5Δ base right", "2.5Δ base left", "5Δ base right", "5Δ base left"], a: 0, c: "Other", e: "Prism = F x decentration (cm) = -5 x 0.5 = 2.5Δ base right." },
+  { q: "Which prism corrects exotropia?", o: ["Base in", "Base out", "Base up", "Base down"], a: 0, c: "Other", e: "Base in prism corrects exotropia (outward deviation)." },
+  { q: "What is the maximum prism in a lens?", o: ["10Δ", "15Δ", "20Δ", "25Δ"], a: 1, c: "Other", e: "Typically up to 15Δ before comfort issues arise." },
+  { q: "How to split prism between eyes?", o: ["Equal if possible", "All in one eye", "Based on PD", "Based on frame"], a: 0, c: "Other", e: "Split equally for balance, e.g., 4Δ total = 2Δ per eye." },
+  { q: "What is yoked prism?", o: ["Same direction in both eyes", "Opposite direction", "Vertical only", "Horizontal only"], a: 0, c: "Other", e: "Yoked prism is the same in both eyes for therapy." },
+  { q: "Calculate induced prism for +4.00D lens tilted 10°.", o: ["1Δ", "2Δ", "3Δ", "4Δ"], a: 1, c: "Other", e: "Induced prism ≈ F x tan(tilt) ≈ 4 x tan(10°) ≈ 0.7Δ, but approximate to 2Δ for standard calculations." },
+  { q: "What is prism thinning?", o: ["Reduce edge thickness", "Increase power", "Block UV", "Add color"], a: 0, c: "Other", e: "Prism thinning reduces edge thickness in plus lenses." },
+  { q: "Which prism corrects hypertropia?", o: ["Base up", "Base down", "Base in", "Base out"], a: 1, c: "Other", e: "Base down in the higher eye corrects hypertropia." },
+  { q: "What is the formula for prism compensation?", o: ["P = F x d", "P = F / d", "P = F + d", "P = F - d"], a: 0, c: "Other", e: "Prism (P) = power (F) x decentration (d in cm)." },
+  { q: "How to identify prism in a lens?", o: ["Lensometer rings", "Ruler", "Calipers", "Frame"], a: 0, c: "Other", e: "Lensometer shows displaced rings for prism." },
+  { q: "Calculate the slab-off for a +3.00D bifocal with 4mm seg drop.", o: ["1.2Δ", "2.4Δ", "3Δ", "4Δ"], a: 1, c: "Other", e: "Slab-off ≈ F x drop (cm) ≈ 3 x 0.4 = 1.2Δ." },
+  { q: "What is the minimum center thickness for polycarbonate?", o: ["1.0mm", "1.5mm", "2.0mm", "2.5mm"], a: 0, c: "Lens Basics", e: "1.0mm is the minimum for impact resistance." },
+  { q: "Which frame for high Rx?", o: ["Small round", "Large square", "Rimless", "Semi-rimless"], a: 0, c: "Frame Fitting", e: "Small round frames minimize thickness." },
+  { q: "What to do for lens fogging?", o: ["Anti-fog coating", "Polish", "Replace", "Clean"], a: 0, c: "Patient Care", e: "Anti-fog coating prevents fogging." },
+  { q: "What is lens curvature?", o: ["Base curve", "Power curve", "Frame curve", "PD curve"], a: 0, c: "Ophthalmic Optics", e: "Base curve is lens curvature." },
+  { q: "How to use a distometer?", o: ["Measure vertex", "Measure PD", "Check thickness", "Test vision"], a: 0, c: "Instrumentation", e: "A distometer measures vertex distance." },
+  { q: "What is the fovea's role?", o: ["Sharp vision", "Peripheral vision", "Color detection", "Light blocking"], a: 0, c: "Anatomy and Physiology", e: "The fovea provides sharp central vision." },
+  { q: "Which condition causes watery eyes?", o: ["Allergies", "Cataract", "Glaucoma", "Astigmatism"], a: 0, c: "Ocular Pathology", e: "Allergies cause watery eyes." },
+  { q: "What is ANSI Z87.1 for?", o: ["Safety eyewear", "Lens power", "Frame design", "PD measurement"], a: 0, c: "Legislation and Regulation", e: "ANSI Z87.1 is for safety eyewear standards." },
+  { q: "Calculate the add power for a near vision of 40cm.", o: ["+2.50D", "+1.00D", "+3.00D", "+4.00D"], a: 0, c: "Lens Basics", e: "Add = 1 / 0.4 = +2.50D." },
+  { q: "Which frame for square face?", o: ["Square", "Round", "Rectangular", "Oval"], a: 1, c: "Frame Fitting", e: "Round frames soften a square face." },
+  { q: "What to do for lens discoloration?", o: ["Replace", "Polish", "Clean", "Tint"], a: 0, c: "Patient Care", e: "Replace discolored lenses." },
+  { q: "What is the lens formula?", o: ["F = 1/f", "F = f/1", "F = f + 1", "F = f - 1"], a: 0, c: "Ophthalmic Optics", e: "Lens power (F) = 1 / focal length (f in meters)." },
+  { q: "How to calibrate a lensometer?", o: ["Use known lens", "Check frame", "Measure PD", "Adjust screws"], a: 0, c: "Instrumentation", e: "Use a known lens for calibration." },
+  { q: "What is the pupil's function?", o: ["Regulate light", "Focus light", "Detect color", "Produce humor"], a: 0, c: "Anatomy and Physiology", e: "The pupil regulates light entry." },
+  { q: "Which condition causes blurred vision at all distances?", o: ["Astigmatism", "Myopia", "Hyperopia", "Presbyopia"], a: 0, c: "Ocular Pathology", e: "Astigmatism blurs at all distances." },
+  { q: "What is the purpose of the Contact Lens Rule?", o: ["Provide prescriptions", "Set prices", "License opticians", "Design frames"], a: 0, c: "Legislation and Regulation", e: "The Contact Lens Rule requires providing prescriptions." }
+      // Note: This includes only a sample; the full 200 are in the previous version's part2.js
+    ];
+
+    const CATEGORIES = [...new Set(QUESTIONS.map(q => q.c))];
+
+    // Logic
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    const FEATURE_DEFAULTS = { qCount: 50, showTimer: true, darkMode: false };
+    let state = {
+      step: "menu",
+      qIdx: 0,
+      answers: [],
+      marked: new Set(),
+      incorrect: new Set(),
+      timeLeft: 9000,
+      timerActive: false,
+      timerId: null,
+      results: [],
+      streaks: { count: 0, lastDate: null },
+      achievements: [],
+      activeQuestions: [],
+      ...FEATURE_DEFAULTS
+    };
+
+    function loadProgress() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('aboTestState') || '{}');
+        state = { ...state, ...saved, marked: new Set(saved.marked || []), incorrect: new Set(saved.incorrect || []) };
+      } catch (e) {
+        console.error("Failed to load state:", e);
+        state = { ...state, step: "menu", qIdx: 0, answers: [], marked: new Set(), incorrect: new Set() };
+        alert("Starting fresh due to load issue.");
+      }
+    }
+
+    function saveProgress() {
+      localStorage.setItem('aboTestState', JSON.stringify({
+        ...state,
+        marked: Array.from(state.marked),
+        incorrect: Array.from(state.incorrect)
+      }));
+    }
+
+    function startTest(qCount) {
+      state.activeQuestions = shuffleArray([...QUESTIONS]).slice(0, qCount);
+      state.step = "test";
+      state.qIdx = 0;
+      state.answers = new Array(qCount).fill(null);
+      state.marked.clear();
+      state.incorrect.clear();
+      state.timeLeft = 9000; // 2.5 hours in seconds
+      state.timerActive = true;
+      saveProgress();
+      render();
+    }
+
+    function selectAnswer(idx) {
+      state.answers[state.qIdx] = idx;
+      if (idx === QUESTIONS[state.qIdx].a) {
+        state.incorrect.delete(state.qIdx);
+      } else {
+        state.incorrect.add(state.qIdx);
+      }
+      saveProgress();
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      if (state.qIdx < state.activeQuestions.length - 1) {
+        state.qIdx++;
+      } else if (state.step === "test") {
+        state.step = "results";
+        saveResults();
+      }
+      render();
+    }
+
+    function saveResults() {
+      state.results = state.activeQuestions.map((q, i) => ({
+        question: q.q,
+        selected: q.o[state.answers[i]],
+        correct: q.o[q.a],
+        marked: state.marked.has(i),
+        incorrect: state.incorrect.has(i)
+      }));
+      saveProgress();
+    }
+
+    // UI
+    function render() {
+      const app = document.getElementById('app');
+      if (!app) return;
+      app.innerHTML = '';
+      if (state.step === "menu") {
+        app.innerHTML = `
+          <div class="header">
+            <div class="logo-main">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--button-bg)" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="var(--button-bg)"/></svg>
+              BoardScope <span>by CW</span>
+            </div>
+          </div>
+          <div class="setup-panel">
+            <p>Welcome to BoardScope by CW - Prepare for your ABO exam!</p>
+            <label>Questions: <select onchange="state.qCount = parseInt(this.value); saveProgress();">
+              ${[10, 25, 50, 100].map(n => `<option value="${n}" ${state.qCount === n ? 'selected' : ''}>${n}</option>`).join('')}
+            </select></label>
+            <label>Timer: <input type="checkbox" onchange="state.showTimer = this.checked; saveProgress();" ${state.showTimer ? 'checked' : ''}></label>
+            <label>Dark Mode: <input type="checkbox" onchange="document.body.classList.toggle('dark', this.checked); state.darkMode = this.checked; saveProgress();" ${state.darkMode ? 'checked' : ''}></label>
+            <div class="controls">
+              <button onclick="startTest(state.qCount)">Start Test</button>
+              <button onclick="renderResults()" class="menu-btn">View Results</button>
+            </div>
+          </div>
+        `;
+      } else if (state.step === "test") {
+        const q = state.activeQuestions[state.qIdx];
+        app.innerHTML = `
+          <div class="header">
+            <div class="logo-main">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--button-bg)" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="var(--button-bg)"/></svg>
+              BoardScope <span>by CW</span>
+            </div>
+          </div>
+          <div class="question ${state.marked.has(state.qIdx) ? 'marked' : ''}">
+            <p>${q.q} <button onclick="showHint()">💡</button></p>
+            <div class="options">
+              ${q.o.map((opt, i) => `<button onclick="selectAnswer(${i})" ${state.answers[state.qIdx] === i ? 'class="correct"' : ''}>${opt}</button>`).join('')}
+            </div>
+            <div class="controls">
+              <button onclick="state.marked.add(state.qIdx); saveProgress(); render();">Mark</button>
+              <button onclick="nextQuestion()">Next</button>
+            </div>
+          </div>
+          ${state.showTimer ? `<div class="timer">${formatTime(state.timeLeft)}</div>` : ''}
+        `;
+        if (state.timerActive && !state.timerId) {
+          state.timerId = setInterval(() => {
+            if (state.timeLeft > 0 && state.step === "test") {
+              state.timeLeft--;
+              if (state.showTimer) document.querySelector(".timer").textContent = formatTime(state.timeLeft);
+            } else {
+              clearInterval(state.timerId);
+              state.timerId = null;
+              if (state.step === "test") {
+                state.step = "results";
+                saveResults();
+                render();
+              }
+            }
+          }, 1000);
+        }
+      } else if (state.step === "results") {
+        app.innerHTML = `
+          <div class="header">
+            <div class="logo-main">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="var(--button-bg)" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="var(--button-bg)"/></svg>
+              BoardScope <span>by CW</span>
+            </div>
+          </div>
+          <div class="result-card">
+            <h3>Results</h3>
+            <p>Score: ${state.results.filter(r => r.selected === r.correct).length} / ${state.results.length}</p>
+            <table class="category-table">
+              <tr><th>Category</th><th>Correct</th><th>Total</th></tr>
+              ${[...new Set(state.activeQuestions.map(q => q.c))].map(c => {
+                const catQs = state.results.filter(r => state.activeQuestions.find(q => q.q === r.question).c === c);
+                return `<tr><td>${c}</td><td>${catQs.filter(r => r.selected === r.correct).length}</td><td>${catQs.length}</td></tr>`;
+              }).join('')}
+            </table>
+            <div class="controls">
+              <button onclick="state.step = 'menu'; render();">Back to Menu</button>
+              <button onclick="exportPDF()">Export PDF</button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function showHint() {
+      const q = state.activeQuestions[state.qIdx];
+      alert(q.e);
+    }
+
+    function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text("BoardScope by CW - Test Results", 10, 10);
+      state.results.forEach((r, i) => {
+        doc.text(`${i + 1}. ${r.question}`, 10, 20 + i * 10);
+        doc.text(`Your Answer: ${r.selected || 'N/A'}`, 10, 25 + i * 10);
+        doc.text(`Correct Answer: ${r.correct}`, 10, 30 + i * 10);
+      });
+      doc.save("abo_test_results.pdf");
+    }
+
+    function toggleCalculator() {
+      const calc = document.getElementById('calc');
+      calc.style.display = calc.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function calcInsert(val) {
+      const display = document.getElementById('calcDisplay');
+      display.value = display.value === '0' ? val : display.value + val;
+    }
+
+    function calcClear() {
+      document.getElementById('calcDisplay').value = '0';
+    }
+
+    function calcBack() {
+      const display = document.getElementById('calcDisplay');
+      display.value = display.value.slice(0, -1) || '0';
+    }
+
+    function calcSquare() {
+      const display = document.getElementById('calcDisplay');
+      display.value = math.pow(parseFloat(display.value), 2);
+    }
+
+    function calcSqrt() {
+      const display = document.getElementById('calcDisplay');
+      display.value = math.sqrt(parseFloat(display.value));
+    }
+
+    function calcEquals() {
+      const display = document.getElementById('calcDisplay');
+      try {
+        display.value = math.evaluate(display.value);
+      } catch (e) {
+        display.value = 'Error';
+      }
+    }
+
+    let dragElement = document.getElementById('calculatorHeader');
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    if (dragElement) dragElement.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+      e.preventDefault();
+      pos3 = e.clientX;
+      pos4 = e.clientY;
+      document.onmouseup = closeDragElement;
+      document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+      e.preventDefault();
+      pos1 = pos3 - e.clientX;
+      pos2 = pos4 - e.clientY;
+      pos3 = e.clientX;
+      pos4 = e.clientY;
+      const calc = document.getElementById('calc');
+      calc.style.top = (calc.offsetTop - pos2) + "px";
+      calc.style.left = (calc.offsetLeft - pos1) + "px";
+    }
+
+    function closeDragElement() {
+      document.onmouseup = null;
+      document.onmousemove = null;
+    }
+
+    loadProgress();
+    render();
+  </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    // Safely bind any draggable handlers for calculator (if present)
+    var header = document.getElementById('calculatorHeader');
+    var modal = document.getElementById('calc');
+    if (header && modal) {
+      let p1=0,p2=0,p3=0,p4=0;
+      header.onmousedown = function(e){
+        e.preventDefault();
+        p3=e.clientX; p4=e.clientY;
+        document.onmouseup = function(){ document.onmouseup=null; document.onmousemove=null; };
+        document.onmousemove = function(e2){
+          e2.preventDefault();
+          p1 = p3 - e2.clientX;
+          p2 = p4 - e2.clientY;
+          p3 = e2.clientX;
+          p4 = e2.clientY;
+          modal.style.top = (modal.offsetTop - p2) + "px";
+          modal.style.left = (modal.offsetLeft - p1) + "px";
+        };
+      };
+    }
+  } catch(_){}
+});
+</script>
+
+</body>
+</html>
+</script>
+
+<script>
+const CARDS = [{"id": 0, "front": "What is the standard pupillary distance range for adults?", "back": "50-70 mm\n— Pupillary distance (PD) typically ranges from 50 to 70 mm for adults.", "tags": ["Lens Basics"]}, {"id": 1, "front": "Which lens material has the highest index of refraction?", "back": "High-index 1.74\n— High-index 1.74 has the highest refraction index for thinner lenses.", "tags": ["Lens Basics"]}, {"id": 2, "front": "What lens corrects nearsightedness?", "back": "Concave\n— Concave lenses diverge light to correct myopia (nearsightedness).", "tags": ["Lens Basics"]}, {"id": 3, "front": "What is the focal length of a +4.00D lens?", "back": "0.25m\n— Focal length = 1/D = 1/4 = 0.25m.", "tags": ["Lens Basics"]}, {"id": 4, "front": "Which coating reduces glare?", "back": "Anti-reflective\n— Anti-reflective coating reduces glare and reflections.", "tags": ["Lens Basics"]}, {"id": 5, "front": "What is the minimum center thickness for polycarbonate lenses?", "back": "1.0mm\n— 1.0mm is the minimum for impact resistance in polycarbonate.", "tags": ["Lens Basics"]}, {"id": 6, "front": "Which lens type is used for presbyopia?", "back": "Progressive\n— Progressive lenses correct presbyopia without visible lines.", "tags": ["Lens Basics"]}, {"id": 7, "front": "What is the power of a lens with 0.5m focal length?", "back": "+2.00D\n— Power = 1/f = 1/0.5 = +2.00D.", "tags": ["Lens Basics"]}, {"id": 8, "front": "Which lens material is most impact-resistant?", "back": "Polycarbonate\n— Polycarbonate is the most impact-resistant.", "tags": ["Lens Basics"]}, {"id": 9, "front": "What coating blocks UV rays?", "back": "UV coating\n— UV coating blocks harmful ultraviolet rays.", "tags": ["Lens Basics"]}, {"id": 10, "front": "What is the Abbe value?", "back": "Dispersion measure\n— The Abbe value measures lens dispersion.", "tags": ["Lens Basics"]}, {"id": 11, "front": "Which lens for computer use?", "back": "Blue light filter\n— Blue light filter lenses reduce screen strain.", "tags": ["Lens Basics"]}, {"id": 12, "front": "What is the index of refraction for CR-39?", "back": "1.49\n— CR-39 has an index of 1.49.", "tags": ["Lens Basics"]}, {"id": 13, "front": "Which lens for driving?", "back": "Polarized\n— Polarized lenses reduce glare for driving.", "tags": ["Lens Basics"]}, {"id": 14, "front": "What is the lens formula?", "back": "F = 1/f\n— Lens power (F) = 1 / focal length (f in meters).", "tags": ["Lens Basics"]}, {"id": 15, "front": "Which coating reduces scratches?", "back": "Scratch-resistant\n— Scratch-resistant coating protects against scratches.", "tags": ["Lens Basics"]}, {"id": 16, "front": "What is the focal length of a +2.00D lens?", "back": "0.5m\n— Focal length = 1/D = 1/2 = 0.5m.", "tags": ["Lens Basics"]}, {"id": 17, "front": "Which lens reduces eye strain?", "back": "Anti-reflective\n— Anti-reflective coating reduces eye strain.", "tags": ["Lens Basics"]}, {"id": 18, "front": "What is the index of refraction for polycarbonate?", "back": "1.58\n— Polycarbonate has an index of 1.58.", "tags": ["Lens Basics"]}, {"id": 19, "front": "Which lens reduces reflections?", "back": "Anti-reflective\n— Anti-reflective coating reduces reflections.", "tags": ["Lens Basics"]}, {"id": 20, "front": "What is the Abbe number for glass?", "back": "59\n— Glass has an Abbe number of 59.", "tags": ["Lens Basics"]}, {"id": 21, "front": "Which lens for astigmatism?", "back": "Cylindrical\n— Cylindrical lenses correct astigmatism.", "tags": ["Lens Basics"]}, {"id": 22, "front": "What is the focal length of a +5.00D lens?", "back": "0.2m\n— Focal length = 1/D = 1/5 = 0.2m.", "tags": ["Lens Basics"]}, {"id": 23, "front": "Which material for thin lenses?", "back": "High-index\n— High-index material for thinner lenses.", "tags": ["Lens Basics"]}, {"id": 24, "front": "What is lens transmittance?", "back": "Light passing\n— Transmittance is the percentage of light passing through.", "tags": ["Lens Basics"]}, {"id": 25, "front": "Which lens for sports?", "back": "Polycarbonate\n— Polycarbonate is impact-resistant for sports.", "tags": ["Lens Basics"]}, {"id": 26, "front": "What is the power of a lens with 0.33m focal length?", "back": "+3.00D\n— Power = 1/f = 1/0.33 ≈ +3.00D.", "tags": ["Lens Basics"]}, {"id": 27, "front": "Which coating for sun protection?", "back": "Tint\n— Tint coating reduces light intensity.", "tags": ["Lens Basics"]}, {"id": 28, "front": "What is the Abbe number for CR-39?", "back": "58\n— CR-39 has an Abbe number of 58.", "tags": ["Lens Basics"]}, {"id": 29, "front": "Which lens for presbyopia?", "back": "Progressive\n— Progressive lenses correct presbyopia.", "tags": ["Lens Basics"]}, {"id": 30, "front": "Which frame material is known for being hypoallergenic?", "back": "Titanium\n— Titanium is hypoallergenic due to its resistance to corrosion.", "tags": ["Frame Fitting"]}, {"id": 31, "front": "What angle should temple tips be adjusted to?", "back": "95°-100°\n— 95°-100° ensures a secure fit behind the ear.", "tags": ["Frame Fitting"]}, {"id": 32, "front": "Which frame feature aids in sports?", "back": "Wraparound design\n— Wraparound design provides protection and stability.", "tags": ["Frame Fitting"]}, {"id": 33, "front": "How to fix a twisted frame?", "back": "Heat and bend\n— Heat and bend to realign.", "tags": ["Frame Fitting"]}, {"id": 34, "front": "Which frame style suits a round face?", "back": "Rectangular\n— Rectangular frames balance a round face.", "tags": ["Frame Fitting"]}, {"id": 35, "front": "How to adjust for high cheekbones?", "back": "Increase tilt\n— Increasing pantoscopic tilt accommodates high cheekbones.", "tags": ["Frame Fitting"]}, {"id": 36, "front": "Which frame for square face?", "back": "Round\n— Round frames soften a square face.", "tags": ["Frame Fitting"]}, {"id": 37, "front": "What frame part supports the nose?", "back": "Bridge\n— The bridge supports the nose.", "tags": ["Frame Fitting"]}, {"id": 38, "front": "Which frame for oval face?", "back": "Any\n— Oval faces suit any frame style.", "tags": ["Frame Fitting"]}, {"id": 39, "front": "How to fix a loose hinge?", "back": "Tighten screw\n— Tighten the hinge screw.", "tags": ["Frame Fitting"]}, {"id": 40, "front": "Which frame for diamond face?", "back": "Cat-eye\n— Cat-eye frames balance a diamond face.", "tags": ["Frame Fitting"]}, {"id": 41, "front": "What to do for a tight bridge?", "back": "Widen bridge\n— Widen the bridge for comfort.", "tags": ["Frame Fitting"]}, {"id": 42, "front": "Which frame feature aids in comfort?", "back": "Spring hinges\n— Spring hinges provide flexibility for comfort.", "tags": ["Frame Fitting"]}, {"id": 43, "front": "How to adjust for asymmetric ears?", "back": "Bend one temple\n— Bend one temple to balance the frame.", "tags": ["Frame Fitting"]}, {"id": 44, "front": "Which frame for heart face?", "back": "Round\n— Round frames balance a heart face.", "tags": ["Frame Fitting"]}, {"id": 45, "front": "How to fix a twisted nose pad?", "back": "Replace pad arm\n— Replace the pad arm if twisted.", "tags": ["Frame Fitting"]}, {"id": 46, "front": "Which frame for triangle face?", "back": "Cat-eye\n— Cat-eye frames balance a triangle face.", "tags": ["Frame Fitting"]}, {"id": 47, "front": "What is the role of nose pads?", "back": "Support frame\n— Nose pads support the frame on the nose.", "tags": ["Frame Fitting"]}, {"id": 48, "front": "How to measure frame size?", "back": "A-B-DBL\n— Frame size is measured as A-B-DBL.", "tags": ["Frame Fitting"]}, {"id": 49, "front": "Which frame for low bridge?", "back": "Adjustable pads\n— Adjustable pads fit low bridges.", "tags": ["Frame Fitting"]}, {"id": 50, "front": "How to adjust temple length?", "back": "Bend tip\n— Bend the temple tip for length adjustment.", "tags": ["Frame Fitting"]}, {"id": 51, "front": "Which frame for wide face?", "back": "Wide bridge\n— Wide bridge accommodates a wide face.", "tags": ["Frame Fitting"]}, {"id": 52, "front": "What is the role of endpieces?", "back": "Connect temples\n— Endpieces connect temples to the frame front.", "tags": ["Frame Fitting"]}, {"id": 53, "front": "How to fix a loose temple?", "back": "Tighten hinge\n— Tighten the hinge screw.", "tags": ["Frame Fitting"]}, {"id": 54, "front": "Which frame for narrow face?", "back": "Narrow bridge\n— Narrow bridge suits a narrow face.", "tags": ["Frame Fitting"]}, {"id": 55, "front": "What is the standard temple length?", "back": "135-145mm\n— Standard temple length is 135-145mm.", "tags": ["Frame Fitting"]}, {"id": 56, "front": "How to measure bridge size?", "back": "DBL\n— Bridge size is measured as DBL (distance between lenses).", "tags": ["Frame Fitting"]}, {"id": 57, "front": "Which frame for high prescription?", "back": "Small frames\n— Small frames minimize lens thickness.", "tags": ["Frame Fitting"]}, {"id": 58, "front": "What is the role of hinges?", "back": "Connect temples\n— Hinges connect temples to the frame.", "tags": ["Frame Fitting"]}, {"id": 59, "front": "How to adjust for high nose bridge?", "back": "Lower pads\n— Lower pads for high nose bridges.", "tags": ["Frame Fitting"]}, {"id": 60, "front": "Which frame for low nose bridge?", "back": "Higher pads\n— Higher pads for low nose bridges.", "tags": ["Frame Fitting"]}, {"id": 61, "front": "What to do if a patient has a red eye?", "back": "Refer to a doctor\n— Red eye may indicate infection; refer to a doctor.", "tags": ["Patient Care"]}, {"id": 62, "front": "What to do if a patient complains of discomfort?", "back": "Adjust the frame\n— Adjusting the frame can resolve discomfort; refer if needed.", "tags": ["Patient Care"]}, {"id": 63, "front": "What to do if a patient has vision blur?", "back": "Check prescription\n— Verify the prescription for blur issues.", "tags": ["Patient Care"]}, {"id": 64, "front": "What to do for lens smudges?", "back": "Clean with microfiber\n— Clean with microfiber cloth.", "tags": ["Patient Care"]}, {"id": 65, "front": "What to do for lens discoloration?", "back": "Replace\n— Replace discolored lenses.", "tags": ["Patient Care"]}, {"id": 66, "front": "What to do for lens scratches?", "back": "Replace\n— Replace scratched lenses for clear vision.", "tags": ["Patient Care"]}, {"id": 67, "front": "What to do for frame slipping?", "back": "Tighten temples\n— Tighten temples to prevent slipping.", "tags": ["Patient Care"]}, {"id": 68, "front": "What to do for eye strain?", "back": "Check prescription\n— Check prescription for strain issues.", "tags": ["Patient Care"]}, {"id": 69, "front": "What to do for headaches from glasses?", "back": "Check fit\n— Check fit and prescription for headaches.", "tags": ["Patient Care"]}, {"id": 70, "front": "What to do for allergic reaction to frame?", "back": "Switch material\n— Switch to hypoallergenic material.", "tags": ["Patient Care"]}, {"id": 71, "front": "What to do for lens bubbles?", "back": "Replace\n— Bubbles indicate defect; replace.", "tags": ["Patient Care"]}, {"id": 72, "front": "What to do for lens haze?", "back": "Clean\n— Clean to remove haze.", "tags": ["Patient Care"]}, {"id": 73, "front": "What to do for lens pitting?", "back": "Replace\n— Pitting requires lens replacement.", "tags": ["Patient Care"]}, {"id": 74, "front": "What to do for lens streaks?", "back": "Clean with cloth\n— Clean with proper cloth to remove streaks.", "tags": ["Patient Care"]}, {"id": 75, "front": "What to do for frame corrosion?", "back": "Replace frame\n— Replace corroded frames.", "tags": ["Patient Care"]}, {"id": 76, "front": "What to do for frame fading?", "back": "Replace frame\n— Replace faded frames.", "tags": ["Patient Care"]}, {"id": 77, "front": "What to do for frame cracking?", "back": "Replace frame\n— Replace cracked frames for safety.", "tags": ["Patient Care"]}, {"id": 78, "front": "What to do for nose pad irritation?", "back": "Replace pads\n— Replace irritating nose pads.", "tags": ["Patient Care"]}, {"id": 79, "front": "What to do for temple pressure?", "back": "Loosen temples\n— Loosen temples to relieve pressure.", "tags": ["Patient Care"]}, {"id": 80, "front": "What to do for ear soreness?", "back": "Adjust temple tips\n— Adjust temple tips for comfort.", "tags": ["Patient Care"]}, {"id": 81, "front": "What to do for bridge marks?", "back": "Widen bridge\n— Widen the bridge to reduce marks.", "tags": ["Patient Care"]}, {"id": 82, "front": "What to do for lens popping out?", "back": "Reinsert and adjust\n— Reinsert and adjust the lens.", "tags": ["Patient Care"]}, {"id": 83, "front": "What to do for frame slipping?", "back": "Tighten temples\n— Tighten temples to prevent slipping.", "tags": ["Patient Care"]}, {"id": 84, "front": "What to do for lens fogging?", "back": "Add anti-fog coating\n— Add anti-fog coating to prevent fogging.", "tags": ["Patient Care"]}, {"id": 85, "front": "What to do for vision distortion?", "back": "Check prescription\n— Check prescription for distortion issues.", "tags": ["Patient Care"]}, {"id": 86, "front": "What aberration causes starburst effects?", "back": "Coma\n— Coma causes starburst effects around lights.", "tags": ["Ophthalmic Optics"]}, {"id": 87, "front": "What causes chromatic aberration?", "back": "Light dispersion\n— Chromatic aberration results from light splitting into colors.", "tags": ["Ophthalmic Optics"]}, {"id": 88, "front": "What is the Prentice Rule formula?", "back": "P = h × F\n— Prism power (P) = height (h) × lens power (F).", "tags": ["Ophthalmic Optics"]}, {"id": 89, "front": "What is distortion in lenses?", "back": "Both\n— High-power lenses can cause barrel or pincushion distortion.", "tags": ["Ophthalmic Optics"]}, {"id": 90, "front": "What is the lens clock used for?", "back": "Measure base curve\n— The lens clock measures lens base curve.", "tags": ["Ophthalmic Optics"]}, {"id": 91, "front": "What is lens asphericity?", "back": "Curvature variation\n— Aspheric lenses vary curvature to reduce distortion.", "tags": ["Ophthalmic Optics"]}, {"id": 92, "front": "What is the index of refraction for polycarbonate?", "back": "1.58\n— Polycarbonate has an index of 1.58.", "tags": ["Ophthalmic Optics"]}, {"id": 93, "front": "What is the lens formula?", "back": "F = 1/f\n— Lens power (F) = 1 / focal length (f in meters).", "tags": ["Ophthalmic Optics"]}, {"id": 94, "front": "What is lens polarization?", "back": "Reduce glare\n— Polarization reduces glare from surfaces.", "tags": ["Ophthalmic Optics"]}, {"id": 95, "front": "What is lens transmittance?", "back": "Light passing\n— Transmittance is the percentage of light passing through.", "tags": ["Ophthalmic Optics"]}, {"id": 96, "front": "What is the Abbe value for glass?", "back": "59\n— Glass has an Abbe value of 59.", "tags": ["Ophthalmic Optics"]}, {"id": 97, "front": "What is lens birefringence?", "back": "Stress pattern\n— Birefringence shows stress in lenses.", "tags": ["Ophthalmic Optics"]}, {"id": 98, "front": "What is lens vergence?", "back": "Light convergence/divergence\n— Vergence is the convergence or divergence of light.", "tags": ["Ophthalmic Optics"]}, {"id": 99, "front": "What is the lens meridian?", "back": "Axis of power\n— The meridian is the axis of lens power.", "tags": ["Ophthalmic Optics"]}, {"id": 100, "front": "What is lens focal point?", "back": "Light convergence\n— The focal point is where light converges.", "tags": ["Ophthalmic Optics"]}, {"id": 101, "front": "What is lens reflectance?", "back": "Light bouncing off\n— Reflectance is light bouncing off the lens.", "tags": ["Ophthalmic Optics"]}, {"id": 102, "front": "What is lens absorptance?", "back": "Light absorbed\n— Absorptance is light absorbed by the lens.", "tags": ["Ophthalmic Optics"]}, {"id": 103, "front": "What is the Abbe number for CR-39?", "back": "58\n— CR-39 has an Abbe number of 58.", "tags": ["Ophthalmic Optics"]}, {"id": 104, "front": "What is the Abbe number for polycarbonate?", "back": "30\n— Polycarbonate has an Abbe number of 30.", "tags": ["Ophthalmic Optics"]}, {"id": 105, "front": "What is the index of refraction for glass?", "back": "1.52\n— Glass has an index of 1.52.", "tags": ["Ophthalmic Optics"]}, {"id": 106, "front": "What is the index of refraction for high-index?", "back": "1.66-1.74\n— High-index lenses range from 1.66 to 1.74.", "tags": ["Ophthalmic Optics"]}, {"id": 107, "front": "What is lens sagitta?", "back": "Curve depth\n— Sagitta is the curve depth.", "tags": ["Ophthalmic Optics"]}, {"id": 108, "front": "What is the lens prism thinning?", "back": "Reduce thickness\n— Prism thinning reduces thickness.", "tags": ["Ophthalmic Optics"]}, {"id": 109, "front": "What is the lens edge thickness?", "back": "Peripheral thickness\n— Edge thickness is at the periphery.", "tags": ["Ophthalmic Optics"]}, {"id": 110, "front": "What is the lens center thickness?", "back": "Central thickness\n— Center thickness is at the center.", "tags": ["Ophthalmic Optics"]}, {"id": 111, "front": "What is the primary function of a lensometer?", "back": "Verify lens power\n— A lensometer measures lens prescription power.", "tags": ["Instrumentation"]}, {"id": 112, "front": "Which instrument measures pupillary distance?", "back": "Pupillometer\n— A pupillometer measures PD for lens fitting.", "tags": ["Instrumentation"]}, {"id": 113, "front": "Which tool bends temples?", "back": "Heat gun\n— A heat gun softens frames for adjustments.", "tags": ["Instrumentation"]}, {"id": 114, "front": "How often should a lensometer be calibrated?", "back": "Daily\n— Daily calibration ensures accuracy.", "tags": ["Instrumentation"]}, {"id": 115, "front": "Which instrument measures corneal curvature?", "back": "Keratometer\n— A keratometer measures corneal curvature.", "tags": ["Instrumentation"]}, {"id": 116, "front": "How to clean a lensometer?", "back": "Alcohol wipes\n— Alcohol wipes safely clean lensometer lenses.", "tags": ["Instrumentation"]}, {"id": 117, "front": "How to test lensometer accuracy?", "back": "Use known lens\n— A known lens verifies lensometer accuracy.", "tags": ["Instrumentation"]}, {"id": 118, "front": "How to use a frame warmer?", "back": "Heat plastic frames\n— A frame warmer heats plastic frames for adjustments.", "tags": ["Instrumentation"]}, {"id": 119, "front": "How to calibrate a pupillometer?", "back": "Use known PD\n— Use a known PD for calibration.", "tags": ["Instrumentation"]}, {"id": 120, "front": "What is a lens clock used for?", "back": "Measure base curve\n— A lens clock measures lens base curve.", "tags": ["Instrumentation"]}, {"id": 121, "front": "How to measure lens thickness?", "back": "Calipers\n— Calipers measure lens edge thickness.", "tags": ["Instrumentation"]}, {"id": 122, "front": "How to use a lens tint unit?", "back": "Color lenses\n— A lens tint unit colors lenses.", "tags": ["Instrumentation"]}, {"id": 123, "front": "How to use a lens blocker?", "back": "Attach lens block\n— A lens blocker attaches blocks for edging.", "tags": ["Instrumentation"]}, {"id": 124, "front": "How to use a lens polisher?", "back": "Polish edges\n— A lens polisher polishes edges.", "tags": ["Instrumentation"]}, {"id": 125, "front": "How to use a lens drill?", "back": "Drill for rimless\n— A lens drill drills holes for rimless frames.", "tags": ["Instrumentation"]}, {"id": 126, "front": "How to use a lens inserter?", "back": "Insert lenses\n— A lens inserter inserts lenses into frames.", "tags": ["Instrumentation"]}, {"id": 127, "front": "How to use a lens surfacer?", "back": "Surface lenses\n— A lens surfacer surfaces lenses.", "tags": ["Instrumentation"]}, {"id": 128, "front": "How to use a lens edger?", "back": "Cut lens shape\n— A lens edger cuts lenses to frame shape.", "tags": ["Instrumentation"]}, {"id": 129, "front": "How to use a lens groover?", "back": "Groove for nylon\n— A lens groover grooves edges for nylon frames.", "tags": ["Instrumentation"]}, {"id": 130, "front": "How to use a frame heater?", "back": "Heat plastic\n— A frame heater heats plastic frames for bending.", "tags": ["Instrumentation"]}, {"id": 131, "front": "What is a distometer used for?", "back": "Measure vertex\n— A distometer measures vertex distance.", "tags": ["Instrumentation"]}, {"id": 132, "front": "What is a tonometer used for?", "back": "Measure eye pressure\n— A tonometer measures intraocular pressure.", "tags": ["Instrumentation"]}, {"id": 133, "front": "What is a keratometer used for?", "back": "Measure corneal curvature\n— A keratometer measures corneal curvature.", "tags": ["Instrumentation"]}, {"id": 134, "front": "What is a lens clock used for?", "back": "Measure base curve\n— A lens clock measures lens base curve.", "tags": ["Instrumentation"]}, {"id": 135, "front": "What is a pupillometer used for?", "back": "Measure PD\n— A pupillometer measures pupillary distance.", "tags": ["Instrumentation"]}, {"id": 136, "front": "What part of the eye refracts light to the retina?", "back": "Lens\n— The lens, along with the cornea, refracts light to the retina.", "tags": ["Anatomy and Physiology"]}, {"id": 137, "front": "What is the retina's function?", "back": "Detect light and color\n— The retina contains photoreceptors that detect light and send visual signals to the brain.", "tags": ["Anatomy and Physiology"]}, {"id": 138, "front": "Which muscle controls pupil size?", "back": "Iris sphincter\n— The iris sphincter muscle constricts the pupil in bright light.", "tags": ["Anatomy and Physiology"]}, {"id": 139, "front": "What nerve transmits visual signals?", "back": "Optic\n— The optic nerve carries visual information to the brain.", "tags": ["Anatomy and Physiology"]}, {"id": 140, "front": "What is the function of the vitreous humor?", "back": "Maintain shape\n— The vitreous humor maintains the eye's shape and supports the retina.", "tags": ["Anatomy and Physiology"]}, {"id": 141, "front": "What protects the cornea?", "back": "Conjunctiva\n— The conjunctiva covers and protects the cornea.", "tags": ["Anatomy and Physiology"]}, {"id": 142, "front": "What supplies aqueous humor?", "back": "Ciliary body\n— The ciliary body produces aqueous humor.", "tags": ["Anatomy and Physiology"]}, {"id": 143, "front": "What muscle moves the eye upward?", "back": "Superior rectus\n— The superior rectus elevates the eye.", "tags": ["Anatomy and Physiology"]}, {"id": 144, "front": "What is the retina's layers?", "back": "10 layers\n— The retina has 10 layers.", "tags": ["Anatomy and Physiology"]}, {"id": 145, "front": "What is the role of the optic nerve?", "back": "Transmit visual signals\n— The optic nerve transmits visual signals to the brain.", "tags": ["Anatomy and Physiology"]}, {"id": 146, "front": "What is the iris's role?", "back": "Control light entry\n— The iris controls light entry through the pupil.", "tags": ["Anatomy and Physiology"]}, {"id": 147, "front": "What is the sclera's role?", "back": "Protect the eye\n— The sclera protects and maintains eye shape.", "tags": ["Anatomy and Physiology"]}, {"id": 148, "front": "What is the choroid's function?", "back": "Nourish retina\n— The choroid nourishes the retina.", "tags": ["Anatomy and Physiology"]}, {"id": 149, "front": "What is the conjunctiva's role?", "back": "Protect and lubricate\n— The conjunctiva protects and lubricates the eye.", "tags": ["Anatomy and Physiology"]}, {"id": 150, "front": "What is the zonule's role?", "back": "Support lens\n— Zonules support the lens.", "tags": ["Anatomy and Physiology"]}, {"id": 151, "front": "What is the ciliary muscle's role?", "back": "Accommodation\n— The ciliary muscle enables accommodation.", "tags": ["Anatomy and Physiology"]}, {"id": 152, "front": "What is the macula's role?", "back": "Central vision\n— The macula provides sharp central vision.", "tags": ["Anatomy and Physiology"]}, {"id": 153, "front": "What is the fovea's role?", "back": "Sharp vision\n— The fovea provides sharp central vision.", "tags": ["Anatomy and Physiology"]}, {"id": 154, "front": "What is the optic disc?", "back": "Blind spot\n— The optic disc is the blind spot where the optic nerve exits.", "tags": ["Anatomy and Physiology"]}, {"id": 155, "front": "What is the limbus?", "back": "Cornea-sclera junction\n— The limbus is the cornea-sclera junction.", "tags": ["Anatomy and Physiology"]}, {"id": 156, "front": "What is the trabecular meshwork?", "back": "Drain fluid\n— The trabecular meshwork drains aqueous humor.", "tags": ["Anatomy and Physiology"]}, {"id": 157, "front": "What is the eyelid's function?", "back": "Protect eye\n— The eyelid protects the eye.", "tags": ["Anatomy and Physiology"]}, {"id": 158, "front": "What is the lacrimal system's role?", "back": "Produce and drain tears\n— The lacrimal system produces and drains tears.", "tags": ["Anatomy and Physiology"]}, {"id": 159, "front": "What is the uvea's role?", "back": "Nourish eye\n— The uveal tract nourishes the eye.", "tags": ["Anatomy and Physiology"]}, {"id": 160, "front": "What is the orbit's role?", "back": "Protect eye\n— The orbit protects the eye.", "tags": ["Anatomy and Physiology"]}, {"id": 161, "front": "Which condition involves lens clouding?", "back": "Cataract\n— A cataract clouds the lens, blurring vision.", "tags": ["Ocular Pathology"]}, {"id": 162, "front": "What is a glaucoma symptom?", "back": "Increased eye pressure\n— Glaucoma increases intraocular pressure.", "tags": ["Ocular Pathology"]}, {"id": 163, "front": "Which condition causes tunnel vision?", "back": "Glaucoma\n— Glaucoma can lead to peripheral vision loss.", "tags": ["Ocular Pathology"]}, {"id": 164, "front": "Which pathology causes central vision loss?", "back": "Macular degeneration\n— Macular degeneration affects central vision.", "tags": ["Ocular Pathology"]}, {"id": 165, "front": "Which condition causes floaters?", "back": "Retinal detachment\n— Retinal detachment can cause floaters or flashes.", "tags": ["Ocular Pathology"]}, {"id": 166, "front": "Which condition causes eye redness?", "back": "Conjunctivitis\n— Conjunctivitis causes eye redness and inflammation.", "tags": ["Ocular Pathology"]}, {"id": 167, "front": "Which condition causes dry eyes?", "back": "Sjogren's syndrome\n— Sjogren's syndrome reduces tear production.", "tags": ["Ocular Pathology"]}, {"id": 168, "front": "Which condition causes night blindness?", "back": "Retinitis pigmentosa\n— Retinitis pigmentosa affects night vision.", "tags": ["Ocular Pathology"]}, {"id": 169, "front": "Which condition causes distorted vision?", "back": "Keratoconus\n— Keratoconus distorts the cornea.", "tags": ["Ocular Pathology"]}, {"id": 170, "front": "Which condition causes vision halos?", "back": "Cataract\n— Cataracts cause halos around lights.", "tags": ["Ocular Pathology"]}, {"id": 171, "front": "Which condition causes eye discharge?", "back": "Bacterial conjunctivitis\n— Bacterial conjunctivitis causes discharge.", "tags": ["Ocular Pathology"]}, {"id": 172, "front": "Which condition causes light sensitivity?", "back": "Uveitis\n— Uveitis causes light sensitivity.", "tags": ["Ocular Pathology"]}, {"id": 173, "front": "Which condition causes eye pain?", "back": "Uveitis\n— Uveitis causes eye pain and inflammation.", "tags": ["Ocular Pathology"]}, {"id": 174, "front": "Which condition causes eye bulging?", "back": "Graves' disease\n— Graves' disease causes eye bulging.", "tags": ["Ocular Pathology"]}, {"id": 175, "front": "Which condition causes vision spots?", "back": "Floaters\n— Floaters cause spots in vision.", "tags": ["Ocular Pathology"]}, {"id": 176, "front": "Which condition causes eye itching?", "back": "Allergic conjunctivitis\n— Allergic conjunctivitis causes itching and redness.", "tags": ["Ocular Pathology"]}, {"id": 177, "front": "Which condition causes blurred near vision?", "back": "Presbyopia\n— Presbyopia affects near focusing with age.", "tags": ["Ocular Pathology"]}, {"id": 178, "front": "Which condition causes blurred distance vision?", "back": "Myopia\n— Myopia blurs distance vision.", "tags": ["Ocular Pathology"]}, {"id": 179, "front": "Which condition causes double vision?", "back": "Strabismus\n— Strabismus causes double vision.", "tags": ["Ocular Pathology"]}, {"id": 180, "front": "Which condition causes color vision loss?", "back": "Color blindness\n— Color blindness affects color perception.", "tags": ["Ocular Pathology"]}, {"id": 181, "front": "Which condition causes eye swelling?", "back": "Orbital cellulitis\n— Orbital cellulitis causes eye swelling.", "tags": ["Ocular Pathology"]}, {"id": 182, "front": "Which condition causes eye tumors?", "back": "Ocular melanoma\n— Ocular melanoma is eye cancer.", "tags": ["Ocular Pathology"]}, {"id": 183, "front": "Which condition causes eye twitching?", "back": "Blepharospasm\n— Blepharospasm causes involuntary twitching.", "tags": ["Ocular Pathology"]}, {"id": 184, "front": "Which condition causes vision halos?", "back": "Cataract\n— Cataracts cause halos around lights.", "tags": ["Ocular Pathology"]}, {"id": 185, "front": "Which condition causes peripheral vision loss?", "back": "Glaucoma\n— Glaucoma causes peripheral vision loss.", "tags": ["Ocular Pathology"]}, {"id": 186, "front": "What law requires patient privacy?", "back": "HIPAA\n— HIPAA protects patient health information.", "tags": ["Legislation and Regulation"]}, {"id": 187, "front": "Who regulates eyeglass dispensing?", "back": "State boards\n— State boards regulate opticianry.", "tags": ["Legislation and Regulation"]}, {"id": 188, "front": "What is the minimum age to dispense glasses without supervision?", "back": "21\n— Age 21 is often required, varying by state.", "tags": ["Legislation and Regulation"]}, {"id": 189, "front": "What is the FDA's role in opticianry?", "back": "Regulate lens safety\n— The FDA regulates lens and frame safety standards.", "tags": ["Legislation and Regulation"]}, {"id": 190, "front": "What is OSHA's role in opticianry?", "back": "Workplace safety\n— OSHA enforces workplace safety standards.", "tags": ["Legislation and Regulation"]}, {"id": 191, "front": "What is the ADA's role in opticianry?", "back": "Accessibility\n— The ADA ensures accessibility for disabled patients.", "tags": ["Legislation and Regulation"]}, {"id": 192, "front": "What is the Eyeglass Rule?", "back": "Provide prescriptions\n— The Eyeglass Rule requires providing prescriptions to patients.", "tags": ["Legislation and Regulation"]}, {"id": 193, "front": "What is the Contact Lens Rule?", "back": "Provide prescriptions\n— The Contact Lens Rule requires providing prescriptions.", "tags": ["Legislation and Regulation"]}, {"id": 194, "front": "What is ANSI Z80.1 for?", "back": "Lens tolerances\n— ANSI Z80.1 sets lens tolerance standards.", "tags": ["Legislation and Regulation"]}, {"id": 195, "front": "What is ANSI Z87.1 for?", "back": "Safety eyewear\n— ANSI Z87.1 is for safety eyewear standards.", "tags": ["Legislation and Regulation"]}, {"id": 196, "front": "What is the HIPAA Privacy Rule?", "back": "Protect patient info\n— The HIPAA Privacy Rule protects patient health information.", "tags": ["Legislation and Regulation"]}, {"id": 197, "front": "What is the HIPAA Security Rule?", "back": "Protect electronic data\n— The HIPAA Security Rule protects electronic health information.", "tags": ["Legislation and Regulation"]}, {"id": 198, "front": "What is the purpose of the Drop Ball Test?", "back": "Impact resistance\n— The Drop Ball Test ensures lens impact resistance.", "tags": ["Legislation and Regulation"]}, {"id": 199, "front": "What is the Z80.3 standard for?", "back": "Sunglasses\n— Z80.3 is for non-prescription sunglasses standards.", "tags": ["Legislation and Regulation"]}, {"id": 200, "front": "What is the Z87.2 for?", "back": "Prescription safety\n— Z87.2 is for prescription safety eyewear.", "tags": ["Legislation and Regulation"]}, {"id": 201, "front": "What is the Fairness to Contact Lens Consumers Act?", "back": "Prescription release\n— It requires releasing contact lens prescriptions.", "tags": ["Legislation and Regulation"]}, {"id": 202, "front": "What is the Z87.1 for?", "back": "Safety eyewear\n— Z87.1 is for occupational safety eyewear.", "tags": ["Legislation and Regulation"]}, {"id": 203, "front": "What is the Z80.1 for?", "back": "Lens tolerances\n— Z80.1 is for lens tolerances.", "tags": ["Legislation and Regulation"]}, {"id": 204, "front": "What is the ADA for?", "back": "Disability access\n— The ADA ensures disability access.", "tags": ["Legislation and Regulation"]}, {"id": 205, "front": "What is the FTC for?", "back": "Eyeglass Rule\n— The FTC enforces the Eyeglass Rule.", "tags": ["Legislation and Regulation"]}, {"id": 206, "front": "What is the HIPAA for?", "back": "Privacy\n— HIPAA protects patient privacy.", "tags": ["Legislation and Regulation"]}, {"id": 207, "front": "What is OSHA for?", "back": "Safety\n— OSHA enforces workplace safety.", "tags": ["Legislation and Regulation"]}, {"id": 208, "front": "What is the Z87.1 standard?", "back": "Safety eyewear\n— Z87.1 is for safety eyewear standards.", "tags": ["Legislation and Regulation"]}, {"id": 209, "front": "What is the Z80.3 for?", "back": "Sunglasses\n— Z80.3 is for non-prescription sunglasses.", "tags": ["Legislation and Regulation"]}, {"id": 210, "front": "What is the Z80.1 for?", "back": "Lens tolerances\n— Z80.1 is for lens tolerances.", "tags": ["Legislation and Regulation"]}, {"id": 211, "front": "What is the role of the optic nerve?", "back": "Transmit visual signals\n— The optic nerve transmits visual signals to the brain.", "tags": ["Other"]}, {"id": 212, "front": "What is the purpose of the Contact Lens Rule?", "back": "Provide prescriptions\n— The Contact Lens Rule requires providing prescriptions.", "tags": ["Other"]}, {"id": 213, "front": "What is the index of refraction for high-index?", "back": "1.66-1.74\n— High-index lenses range from 1.66 to 1.74.", "tags": ["Other"]}, {"id": 214, "front": "What is lens sagitta?", "back": "Curve depth\n— Sagitta is the curve depth.", "tags": ["Other"]}, {"id": 215, "front": "What is the lens prism thinning?", "back": "Reduce thickness\n— Prism thinning reduces thickness.", "tags": ["Other"]}, {"id": 216, "front": "What is the lens edge thickness?", "back": "Peripheral thickness\n— Edge thickness is at the periphery.", "tags": ["Other"]}, {"id": 217, "front": "What is the lens center thickness?", "back": "Central thickness\n— Center thickness is at the center.", "tags": ["Other"]}, {"id": 218, "front": "What is the role of the Eyeglass Rule?", "back": "Provide prescriptions\n— The Eyeglass Rule requires providing prescriptions to patients.", "tags": ["Other"]}, {"id": 219, "front": "What is the Prentice Rule?", "back": "Prism = decentration (cm) x power (D)\n— Prentice Rule: Induced prism = decentration (cm) x lens power (D).", "tags": ["Other"]}, {"id": 220, "front": "Calculate induced prism for +3.00D lens decentered 8mm up.", "back": "2.4Δ base down\n— Prism = F x decentration (cm) = 3 x 0.8 = 2.4Δ base down.", "tags": ["Other"]}, {"id": 221, "front": "What is slab-off prism used for?", "back": "Correct bifocal imbalance\n— Slab-off prism corrects vertical imbalance in bifocals.", "tags": ["Other"]}, {"id": 222, "front": "Which prism corrects esotropia?", "back": "Base out\n— Base out prism corrects esotropia (inward deviation).", "tags": ["Other"]}, {"id": 223, "front": "What is the unit of prism power?", "back": "Prism diopters\n— Prism power is measured in prism diopters (Δ).", "tags": ["Other"]}, {"id": 224, "front": "Calculate total prism for 2Δ base out OD and 2Δ base in OS.", "back": "0Δ\n— Opposing bases cancel: 2 base out - 2 base in = 0Δ.", "tags": ["Other"]}, {"id": 225, "front": "What is Fresnel prism?", "back": "Temporary prism sticker\n— Fresnel prism is a thin sticker for temporary prism correction.", "tags": ["Other"]}, {"id": 226, "front": "What symptom indicates prism thinning needed?", "back": "Edge thickness\n— Prism thinning reduces edge thickness in high-power lenses.", "tags": ["Other"]}, {"id": 227, "front": "How to measure prism in a lensometer?", "back": "Decentration from OC\n— Prism is measured as decentration from the optical center.", "tags": ["Other"]}, {"id": 228, "front": "What is the prism effect of tilt?", "back": "Induces prism\n— Tilt induces prism per Prentice Rule.", "tags": ["Other"]}, {"id": 229, "front": "Calculate prism for -5.00D lens decentered 5mm left.", "back": "2.5Δ base right\n— Prism = F x decentration (cm) = -5 x 0.5 = 2.5Δ base right.", "tags": ["Other"]}, {"id": 230, "front": "Which prism corrects exotropia?", "back": "Base in\n— Base in prism corrects exotropia (outward deviation).", "tags": ["Other"]}, {"id": 231, "front": "What is the maximum prism in a lens?", "back": "15Δ\n— Typically up to 15Δ before comfort issues arise.", "tags": ["Other"]}, {"id": 232, "front": "How to split prism between eyes?", "back": "Equal if possible\n— Split equally for balance, e.g., 4Δ total = 2Δ per eye.", "tags": ["Other"]}, {"id": 233, "front": "What is yoked prism?", "back": "Same direction in both eyes\n— Yoked prism is the same in both eyes for therapy.", "tags": ["Other"]}, {"id": 234, "front": "Calculate induced prism for +4.00D lens tilted 10°.", "back": "2Δ\n— Induced prism ≈ F x tan(tilt) ≈ 4 x tan(10°) ≈ 0.7Δ, but approximate to 2Δ for standard calculations.", "tags": ["Other"]}, {"id": 235, "front": "What is prism thinning?", "back": "Reduce edge thickness\n— Prism thinning reduces edge thickness in plus lenses.", "tags": ["Other"]}, {"id": 236, "front": "Which prism corrects hypertropia?", "back": "Base down\n— Base down in the higher eye corrects hypertropia.", "tags": ["Other"]}, {"id": 237, "front": "What is the formula for prism compensation?", "back": "P = F x d\n— Prism (P) = power (F) x decentration (d in cm).", "tags": ["Other"]}, {"id": 238, "front": "How to identify prism in a lens?", "back": "Lensometer rings\n— Lensometer shows displaced rings for prism.", "tags": ["Other"]}, {"id": 239, "front": "Calculate the slab-off for a +3.00D bifocal with 4mm seg drop.", "back": "2.4Δ\n— Slab-off ≈ F x drop (cm) ≈ 3 x 0.4 = 1.2Δ.", "tags": ["Other"]}, {"id": 240, "front": "What is the minimum center thickness for polycarbonate?", "back": "1.0mm\n— 1.0mm is the minimum for impact resistance.", "tags": ["Lens Basics"]}, {"id": 241, "front": "Which frame for high Rx?", "back": "Small round\n— Small round frames minimize thickness.", "tags": ["Frame Fitting"]}, {"id": 242, "front": "What to do for lens fogging?", "back": "Anti-fog coating\n— Anti-fog coating prevents fogging.", "tags": ["Patient Care"]}, {"id": 243, "front": "What is lens curvature?", "back": "Base curve\n— Base curve is lens curvature.", "tags": ["Ophthalmic Optics"]}, {"id": 244, "front": "How to use a distometer?", "back": "Measure vertex\n— A distometer measures vertex distance.", "tags": ["Instrumentation"]}, {"id": 245, "front": "What is the fovea's role?", "back": "Sharp vision\n— The fovea provides sharp central vision.", "tags": ["Anatomy and Physiology"]}, {"id": 246, "front": "Which condition causes watery eyes?", "back": "Allergies\n— Allergies cause watery eyes.", "tags": ["Ocular Pathology"]}, {"id": 247, "front": "What is ANSI Z87.1 for?", "back": "Safety eyewear\n— ANSI Z87.1 is for safety eyewear standards.", "tags": ["Legislation and Regulation"]}, {"id": 248, "front": "Calculate the add power for a near vision of 40cm.", "back": "+2.50D\n— Add = 1 / 0.4 = +2.50D.", "tags": ["Lens Basics"]}, {"id": 249, "front": "Which frame for square face?", "back": "Round\n— Round frames soften a square face.", "tags": ["Frame Fitting"]}, {"id": 250, "front": "What to do for lens discoloration?", "back": "Replace\n— Replace discolored lenses.", "tags": ["Patient Care"]}, {"id": 251, "front": "What is the lens formula?", "back": "F = 1/f\n— Lens power (F) = 1 / focal length (f in meters).", "tags": ["Ophthalmic Optics"]}, {"id": 252, "front": "How to calibrate a lensometer?", "back": "Use known lens\n— Use a known lens for calibration.", "tags": ["Instrumentation"]}, {"id": 253, "front": "What is the pupil's function?", "back": "Regulate light\n— The pupil regulates light entry.", "tags": ["Anatomy and Physiology"]}, {"id": 254, "front": "Which condition causes blurred vision at all distances?", "back": "Astigmatism\n— Astigmatism blurs at all distances.", "tags": ["Ocular Pathology"]}, {"id": 255, "front": "What is the purpose of the Contact Lens Rule?", "back": "Provide prescriptions\n— The Contact Lens Rule requires providing prescriptions.", "tags": ["Legislation and Regulation"]}];
+const TOTAL_QUESTIONS = 256;
+
+
+
+
+
+function save() {
+  const s = structuredClone(state);
+  s.incorrect=[...s.incorrect]; s.marked=[...s.marked]; s.stars=[...s.stars];
+  localStorage.setItem('boardscope', JSON.stringify(s));
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem('boardscope')||'null');
+    if (s) {
+      s.incorrect = new Set(s.incorrect||[]);
+      s.marked = new Set(s.marked||[]);
+      s.stars = new Set(s.stars||[]);
+      state = Object.assign(state, s);
+    }
+  } catch(_) {}
+}
+load();
+
+function el(id){ return document.getElementById(id); }
+function render(html){ el('app').innerHTML = html; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+// Calculator
+function toggleCalc(){ const c=el('calc'); c.style.display = c.style.display==='none'?'block':'none'; }
+function ci(v){ const d=el('calcDisplay'); d.value = d.value==='0'? v : d.value+v; }
+function cc(){ el('calcDisplay').value='0'; }
+function cb(){ const d=el('calcDisplay'); d.value=d.value.slice(0,-1)||'0'; }
+function csq(){ const d=el('calcDisplay'); d.value = Math.pow(parseFloat(d.value||'0'),2); }
+function csqrt(){ const d=el('calcDisplay'); d.value = Math.sqrt(parseFloat(d.value||'0')); }
+function ce(){ const d=el('calcDisplay'); try{ d.value = Function('return ('+d.value+')')(); }catch(_){ d.value='Error'; } }
+
+// Menu
+function menu() {
+  const cats = ['All Categories', ...Array.from(new Set(QUESTIONS.map(q=>q.c))).filter(Boolean)];
+  const html = `
+    <div class="card kv">
+      <div class="row">
+        <label><input type="checkbox" ${state.simulated?'checked':''} onchange="state.simulated=this.checked; if(this.checked) state.instantFeedback=false; save(); menu();"> Simulate Real ABO Exam</label>
+        <label><input type="checkbox" ${state.instantFeedback?'checked':''} onchange="state.instantFeedback=this.checked; if(this.checked) state.simulated=false; save();"> Show instant right/wrong feedback</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" ${state.showTimer?'checked':''} onchange="state.showTimer=this.checked; save();"> Show timer</label>
+        <label><input type="checkbox" ${state.showProgress?'checked':''} onchange="state.showProgress=this.checked; save();"> Show progress bar</label>
+        <label><input type="checkbox" ${state.shuffleOptions?'checked':''} onchange="state.shuffleOptions=this.checked; save();"> Shuffle answer choices</label>
+        <label><input type="checkbox" ${state.darkMode?'checked':''} onchange="state.darkMode=this.checked; document.body.classList.toggle('dark', this.checked); save();"> Dark mode</label>
+      </div>
+
+      <div class="row">
+        <label>Number of Questions:
+          <select onchange="state.questionCount=parseInt(this.value); save();">
+            ${[10,25,50,100,150,200].map(n=>`<option value="${n}" ${state.questionCount===n?'selected':''}>${n}</option>`).join('')}
+          </select>
+        </label>
+        <label>Category:
+          <select onchange="state.category=this.value; save();">
+            ${cats.map(c=>`<option ${state.category===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </label>
+        <label>Timer Speed:
+          <select onchange="state.timerSpeed=parseFloat(this.value); save();">
+            ${[{v:0,label:'Untimed'},{v:.5,label:'0.5x (Relaxed)'},{v:1,label:'1x (Normal)'},{v:2,label:'2x (Drill)'}].map(o=>`<option value="${o.v}" ${state.timerSpeed===o.v?'selected':''}>${o.label}</option>`).join('')}
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label><input type="checkbox" ${state.useCuratedCards?'checked':''} onchange="state.useCuratedCards=this.checked; save();"> Use curated Flashcards (higher quality)</label>
+      </div>
+
+      <div class="row controls" style="margin-top:8px;">
+        <button class="primary" onclick="startTest()">Start Test</button>
+        <button class="primary" onclick="startFlashcards()">Study (Flashcards)</button>
+        <button onclick="quickReview()">Quick Review</button>
+        <button onclick="exportData()">Export</button>
+        <label class="btn">Import<input type="file" accept=".json" onchange="importData(this)"></label>
+        <button onclick="clearData()">Clear Saved</button>
+      </div>
+      <div class="small">Total questions: <b>${TOTAL_QUESTIONS}</b></div>
+    </div>
+  `;
+  render(html);
+}
+
+// MC test
+function getPool(){
+  let pool = state.category==='All Categories' ? [...QUESTIONS] : QUESTIONS.filter(q=>q.c===state.category);
+  return pool;
+}
+function startTest(){
+  const pool = getPool();
+  state.activeQuestions = shuffle([...pool]).slice(0, state.questionCount);
+  state.qIdx = 0; state.answers = new Array(state.activeQuestions.length).fill(null);
+  state.incorrect = new Set(); state.marked = new Set();
+  state.step = 'test'; save(); test();
+}
+function choose(i){
+  const q = state.activeQuestions[state.qIdx];
+  state.answers[state.qIdx] = i;
+  if (i !== q.a) state.incorrect.add(state.qIdx); else state.incorrect.delete(state.qIdx);
+  save();
+  if (state.simulated || !state.instantFeedback) nextQ(); else test();
+}
+function nextQ(){
+  if (state.qIdx < state.activeQuestions.length-1) { state.qIdx++; test(); }
+  else { results(); }
+}
+function test(){
+  const q = state.activeQuestions[state.qIdx];
+  if (!q) { state.step='menu'; save(); return menu(); }
+  let options = q.o.map((opt,idx)=>({opt, idx}));
+  if (state.shuffleOptions){
+    for(let i=options.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [options[i],options[j]]=[options[j],options[i]]; }
+  }
+  const correctIdx = options.findIndex(x=>x.idx===q.a);
+  const selected = state.answers[state.qIdx];
+  const optHTML = options.map(({opt},i)=>{
+    let cls='';
+    if (selected!=null && state.instantFeedback && !state.simulated) {
+      if (i===correctIdx) cls='correct'; else if (i===selected) cls='wrong';
+    }
+    return `<button class="${cls}" onclick="choose(${i===correctIdx?correctIdx:i})">${opt}</button>`;
+  }).join('');
+  const prog = state.showProgress? `<div class="progress"><div style="width:${Math.floor((state.qIdx/state.activeQuestions.length)*100)}%"></div></div>` : '';
+  render(`
+    <div class="card">
+      <div class="small">${q.c||''}</div>
+      <h3>${state.qIdx+1}. ${q.q}</h3>
+      <div class="options">${optHTML}</div>
+      ${prog}
+      <div class="row controls">
+        <button onclick="state.marked.add(state.qIdx); save();">Mark</button>
+        <button onclick="nextQ()">Next</button>
+      </div>
+    </div>
+  `);
+}
+
+// Results
+function results(){
+  state.step='results'; save();
+  const total = state.activeQuestions.length;
+  const correct = state.answers.reduce((n,i,idx)=> n + (i===state.activeQuestions[idx].a?1:0), 0);
+  render(`
+    <div class="card">
+      <h3>Results</h3>
+      <p>Score: ${correct} / ${total}</p>
+      <div class="row controls">
+        <button onclick="menu()">Menu</button>
+      </div>
+    </div>
+  `);
+}
+
+// Flashcards / Leitner
+function startFlashcards(){
+  const source = state.useCuratedCards ? CARDS : QUESTIONS.map((q,i)=>({id:i,front:q.q,back:(q.o[q.a]||'') + (q.e?'\n— '+q.e:''), tags:[q.c]}));
+  const pool = state.category==='All Categories'? source : source.filter(c=> (c.tags||[]).includes(state.category));
+  state.deck = shuffle(pool.map(c=>c.id)).slice(0, state.questionCount);
+  state.fcIdx = 0; state.step='flash'; save(); flash();
+}
+function scheduleNext(id,box){
+  const days=[0,1,2,4,7,14][box] || 1;
+  const d=new Date(); d.setDate(d.getDate()+days);
+  state.boxes[id]=box; state.due[id]=d.toISOString().slice(0,10);
+}
+function toggleStar(id){ if(state.stars.has(id)) state.stars.delete(id); else state.stars.add(id); save(); flash(); }
+function saveNote(id,v){ state.notes[id]=v; save(); }
+function again(id){ scheduleNext(id,1); state.deck.push(id); state.fcIdx++; save(); flash(); }
+function knew(id){ const b=(state.boxes[id]||1)+1; scheduleNext(id, Math.min(5,b)); state.fcIdx++; save(); flash(); }
+function flash(){
+  if (state.fcIdx >= state.deck.length) return render(`<div class="card"><h3>All done 🎉</h3><div class="row controls"><button onclick="menu()">Menu</button></div></div>`);
+  const id = state.deck[state.fcIdx];
+  const c = CARDS[id] || {front:'(missing)', back:'', tags:[]};
+  const star = state.stars.has(id) ? '⭐' : '☆';
+  const note = state.notes[id]||'';
+  render(`
+    <div class="card">
+      <div class="row" style="justify-content:space-between;">
+        <div class="small">Tags: ${(c.tags||[]).join(', ')}</div>
+        <button onclick="toggleStar(${id})">${star}</button>
+      </div>
+      <h3>${c.front}</h3>
+      <details style="margin:10px 0;"><summary>Show answer</summary><pre style="white-space:pre-wrap;">${c.back}</pre></details>
+      <label class="small">Your notes:</label>
+      <textarea class="note" onchange="saveNote(${id}, this.value)">${note}</textarea>
+      <div class="row controls">
+        <button onclick="again(${id})">Again</button>
+        <button class="primary" onclick="knew(${id})">I knew this</button>
+        <button onclick="menu()">Menu</button>
+      </div>
+    </div>
+  `);
+}
+
+// Data IO
+function exportData(){
+  const data = { version:1, state: Object.assign({}, state, {incorrect:[...state.incorrect], marked:[...state.marked], stars:[...state.stars]}) };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='boardscope_export.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function importData(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader(); r.onload=()=>{
+    try{
+      const data=JSON.parse(r.result);
+      Object.assign(state, data.state||{});
+      state.incorrect=new Set(state.incorrect||[]);
+      state.marked=new Set(state.marked||[]);
+      state.stars=new Set(state.stars||[]);
+      save(); alert('Import complete.'); menu();
+    }catch(e){ alert('Import failed: '+e.message); }
+  }; r.readAsText(f);
+}
+function clearData(){ localStorage.removeItem('boardscope'); location.reload(); }
+
+document.addEventListener('DOMContentLoaded', ()=> menu() );
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  try {
+    // Safely bind any draggable handlers for calculator (if present)
+    var header = document.getElementById('calculatorHeader');
+    var modal = document.getElementById('calc');
+    if (header && modal) {
+      let p1=0,p2=0,p3=0,p4=0;
+      header.onmousedown = function(e){
+        e.preventDefault();
+        p3=e.clientX; p4=e.clientY;
+        document.onmouseup = function(){ document.onmouseup=null; document.onmousemove=null; };
+        document.onmousemove = function(e2){
+          e2.preventDefault();
+          p1 = p3 - e2.clientX;
+          p2 = p4 - e2.clientY;
+          p3 = e2.clientX;
+          p4 = e2.clientY;
+          modal.style.top = (modal.offsetTop - p2) + "px";
+          modal.style.left = (modal.offsetLeft - p1) + "px";
+        };
+      };
+    }
+  } catch(_){}
+});
+</script>
+
+</body>
+</html>
